@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─── Debug + -Werror ─────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test (Debug)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-Werror"
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # ─── AddressSanitizer ────────────────────────────────────────────────────
+  asan:
+    name: Build & Test (ASAN)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build_asan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAEGIS_ASAN=ON \
+            -DCMAKE_CXX_FLAGS="-Werror"
+
+      - name: Build
+        run: cmake --build build_asan -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build_asan --output-on-failure
+
+  # ─── ThreadSanitizer (stub – populated from milestone 4) ────────────────
+  tsan:
+    name: Build & Test (TSAN)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build_tsan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAEGIS_TSAN=ON \
+            -DCMAKE_CXX_FLAGS="-Werror"
+
+      - name: Build
+        run: cmake --build build_tsan -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build_tsan --output-on-failure
