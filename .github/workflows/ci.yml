@@ -1,3 +1,4 @@
+# AegisDB continuous integration – build, test, ASAN, TSAN
 name: CI
 
 on:
