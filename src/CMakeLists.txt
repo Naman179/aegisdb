@@ -22,3 +22,11 @@ add_library(aegisdb_kv STATIC
 )
 target_include_directories(aegisdb_kv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(aegisdb_kv PUBLIC aegisdb_common)
+
+# ── Milestone 4: Raft consensus ───────────────────────────────────────────────
+add_library(aegisdb_raft STATIC
+    raft/raft_log.cpp
+    raft/raft_node.cpp
+)
+target_include_directories(aegisdb_raft PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(aegisdb_raft PUBLIC aegisdb_common)
