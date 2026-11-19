@@ -2,6 +2,8 @@ add_executable(aegis_tests
     common/codec_test.cpp
     common/crc32c_test.cpp
     common/logger_test.cpp
+    # Milestone 2 – WAL
+    wal/wal_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
@@ -11,6 +13,7 @@ target_include_directories(aegis_tests PRIVATE
 target_link_libraries(aegis_tests
     PRIVATE
     aegisdb_common
+    aegisdb_wal
     gtest_main
 )
 
