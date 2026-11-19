@@ -4,6 +4,8 @@ add_executable(aegis_tests
     common/logger_test.cpp
     # Milestone 2 – WAL
     wal/wal_test.cpp
+    # Milestone 3 – KV state machine
+    kv/kv_store_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
@@ -14,6 +16,7 @@ target_link_libraries(aegis_tests
     PRIVATE
     aegisdb_common
     aegisdb_wal
+    aegisdb_kv
     gtest_main
 )
 

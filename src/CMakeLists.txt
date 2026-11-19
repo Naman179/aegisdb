@@ -15,3 +15,10 @@ add_library(aegisdb_wal STATIC
 )
 target_include_directories(aegisdb_wal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(aegisdb_wal PUBLIC aegisdb_common)
+
+# ── Milestone 3: KV State Machine ─────────────────────────────────────────────
+add_library(aegisdb_kv STATIC
+    kv/kv_store.cpp
+)
+target_include_directories(aegisdb_kv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(aegisdb_kv PUBLIC aegisdb_common)
