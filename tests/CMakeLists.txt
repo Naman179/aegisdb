@@ -6,6 +6,9 @@ add_executable(aegis_tests
     wal/wal_test.cpp
     # Milestone 3 – KV state machine
     kv/kv_store_test.cpp
+    # Milestone 4 – Raft consensus
+    raft/fake_network.h
+    raft/raft_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
@@ -17,6 +20,7 @@ target_link_libraries(aegis_tests
     aegisdb_common
     aegisdb_wal
     aegisdb_kv
+    aegisdb_raft
     gtest_main
 )
 
