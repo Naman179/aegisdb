@@ -49,6 +49,18 @@ public:
     uint64_t requestRead();
     std::vector<ReadState> takeReadStates();
 
+    // ── Log compaction (Raft §7) ──────────────────────────────────────────────
+    // The application calls this after it has applied entries up to `index` and
+    // serialised its state machine into `snapshot`. The log prefix is dropped
+    // and the bytes are kept so lagging followers can be sent InstallSnapshot.
+    // Returns false if `index` is not an applied index in the log.
+    bool compact(LogIndex index, std::vector<uint8_t> snapshot);
+    LogIndex snapshotIndex() const { return log_.snapshotIndex(); }
+
+    // Set when a leader's snapshot replaced our state; the application must
+    // restore it before consuming further takeApplied() output.
+    std::optional<InstalledSnapshot> takeInstalledSnapshot();
+
     // Drain entries that have been committed and applied.
     std::vector<LogEntry> takeApplied();
 
@@ -88,6 +100,8 @@ private:
     void handleRequestVoteReply(const Message& msg, const RequestVoteReply& rpl);
     void handleAppendEntries(const Message& msg, const AppendEntriesArgs& args);
     void handleAppendEntriesReply(const Message& msg, const AppendEntriesReply& rpl);
+    void handleInstallSnapshot(const Message& msg, const InstallSnapshotArgs& args);
+    void handleInstallSnapshotReply(const Message& msg, const InstallSnapshotReply& rpl);
 
     // ── Identity ──────────────────────────────────────────────────────────────
     NodeId              id_;
@@ -129,6 +143,10 @@ private:
     uint64_t                 readSeq_{0};
     std::vector<PendingRead> pendingReads_;
     std::vector<ReadState>   readStates_;
+
+    // ── Snapshots ─────────────────────────────────────────────────────────────
+    std::vector<uint8_t>             snapshotData_;      // bytes at log_.snapshotIndex()
+    std::optional<InstalledSnapshot> installedSnapshot_;  // pending for the app
 
     // ── Output queues ─────────────────────────────────────────────────────────
     std::vector<Message>  pending_;   // outbound messages (tick + step + propose)

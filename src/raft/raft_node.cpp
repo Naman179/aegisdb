@@ -145,6 +145,12 @@ void RaftNode::becomeLeader() {
 
 void RaftNode::sendAppendEntries(NodeId to, uint64_t readCtx) {
     LogIndex next     = nextIndex_.count(to) ? nextIndex_[to] : 1u;
+    if (next <= log_.snapshotIndex() && !snapshotData_.empty()) {
+        // The entries this follower needs are compacted away: ship the snapshot.
+        pending_.push_back(Message{id_, to, InstallSnapshotArgs{
+            currentTerm_, id_, log_.snapshotIndex(), log_.snapshotTerm(), snapshotData_}});
+        return;
+    }
     LogIndex prevIdx  = next - 1;
     Term     prevTerm = log_.termAt(prevIdx);
     pending_.push_back(Message{
@@ -244,8 +250,12 @@ std::vector<Message> RaftNode::step(const Message& msg) {
             handleRequestVoteReply(msg, args);
         else if constexpr (std::is_same_v<T, AppendEntriesArgs>)
             handleAppendEntries(msg, args);
-        else
+        else if constexpr (std::is_same_v<T, AppendEntriesReply>)
             handleAppendEntriesReply(msg, args);
+        else if constexpr (std::is_same_v<T, InstallSnapshotArgs>)
+            handleInstallSnapshot(msg, args);
+        else
+            handleInstallSnapshotReply(msg, args);
     }, msg.payload);
     return std::move(pending_);
 }
@@ -415,6 +425,59 @@ bool RaftNode::propose(std::vector<uint8_t> data) {
     pending_.clear();
     broadcastAppendEntries();
     return true;
+}
+
+bool RaftNode::compact(LogIndex index, std::vector<uint8_t> snapshot) {
+    if (!log_.compactTo(index)) return false;
+    snapshotData_ = std::move(snapshot);
+    return true;
+}
+
+std::optional<InstalledSnapshot> RaftNode::takeInstalledSnapshot() {
+    auto out = std::move(installedSnapshot_);
+    installedSnapshot_.reset();
+    return out;
+}
+
+void RaftNode::handleInstallSnapshot(const Message& msg,
+                                     const InstallSnapshotArgs& args) {
+    InstallSnapshotReply rpl;
+    rpl.followerId = id_;
+    rpl.term       = currentTerm_;
+    if (args.term < currentTerm_) {
+        pending_.push_back(Message{id_, msg.from, rpl});
+        return;
+    }
+    becomeFollower(args.term);
+    leaderId_ = args.leaderId;
+    rpl.term  = currentTerm_;
+
+    if (args.lastIncludedIndex <= log_.commitIndex()) {
+        // We are already past this snapshot; just report how far we are.
+        rpl.lastIncludedIndex = log_.commitIndex();
+    } else {
+        log_.installSnapshot(args.lastIncludedIndex, args.lastIncludedTerm);
+        snapshotData_      = args.data;
+        installedSnapshot_ = InstalledSnapshot{args.lastIncludedIndex,
+                                               args.lastIncludedTerm, args.data};
+        rpl.lastIncludedIndex = args.lastIncludedIndex;
+        LOG(LogLevel::INFO, "node %u installed snapshot through index %llu",
+            id_, (unsigned long long)args.lastIncludedIndex);
+    }
+    pending_.push_back(Message{id_, msg.from, rpl});
+}
+
+void RaftNode::handleInstallSnapshotReply(const Message& msg,
+                                          const InstallSnapshotReply& rpl) {
+    if (rpl.term > currentTerm_) { becomeFollower(rpl.term); return; }
+    if (role_ != RaftRole::kLeader || rpl.term != currentTerm_) return;
+
+    NodeId f = msg.from;
+    heardFrom_.insert(f);
+    matchIndex_[f] = std::max(matchIndex_[f], rpl.lastIncludedIndex);
+    nextIndex_[f]  = matchIndex_[f] + 1;
+    maybeAdvanceCommit();
+    sendAppendEntries(f);  // stream whatever follows the snapshot
 }
 
 uint64_t RaftNode::requestRead() {
