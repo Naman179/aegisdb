@@ -50,12 +50,14 @@ public:
     RaftRole role()         const { return role_; }
     bool     isLeader()     const { return role_ == RaftRole::kLeader; }
     NodeId   votedFor()     const { return votedFor_; }
+    NodeId   leaderId()     const { return leaderId_; }  // kNone if unknown
     LogIndex commitIndex()  const { return log_.commitIndex(); }
     LogIndex lastLogIndex() const { return log_.lastIndex(); }
 
 private:
     // ── Role transitions ──────────────────────────────────────────────────────
     void becomeFollower(Term term);
+    void startPreVote();
     void becomeCandidate();
     void becomeLeader();
 
@@ -71,6 +73,7 @@ private:
 
     // ── Message handlers ──────────────────────────────────────────────────────
     void handleRequestVote(const Message& msg, const RequestVoteArgs& args);
+    void handlePreVote(const Message& msg, const RequestVoteArgs& args);
     void handleRequestVoteReply(const Message& msg, const RequestVoteReply& rpl);
     void handleAppendEntries(const Message& msg, const AppendEntriesArgs& args);
     void handleAppendEntriesReply(const Message& msg, const AppendEntriesReply& rpl);
@@ -87,6 +90,7 @@ private:
     // ── Persistent state (would be flushed to WAL in M5) ─────────────────────
     Term   currentTerm_{0};
     NodeId votedFor_{kNone};
+    NodeId leaderId_{kNone};  // last leader heard from this term (volatile)
 
     // ── Volatile state ────────────────────────────────────────────────────────
     RaftRole role_{RaftRole::kFollower};

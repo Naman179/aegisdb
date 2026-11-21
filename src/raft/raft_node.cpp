@@ -59,13 +59,38 @@ void RaftNode::becomeFollower(Term term) {
     if (term > currentTerm_) {
         currentTerm_ = term;
         votedFor_    = kNone;
+        leaderId_    = kNone;
     }
     role_ = RaftRole::kFollower;
     resetElectionTimeout();
 }
 
+// PreVote (Raft thesis §9.6): probe whether a real election could succeed
+// without touching currentTerm_ or votedFor_. A node that is partitioned away
+// never gathers a majority of pre-votes, so its term cannot inflate and it
+// cannot force a healthy leader to step down when it rejoins.
+void RaftNode::startPreVote() {
+    role_     = RaftRole::kPreCandidate;
+    leaderId_ = kNone;
+    votesGranted_.clear();
+    votesGranted_.insert(id_);
+    resetElectionTimeout();
+
+    if (votesGranted_.size() >= quorum()) { becomeCandidate(); return; }
+
+    LOG(LogLevel::INFO, "node %u starting pre-vote for term %llu",
+        id_, (unsigned long long)(currentTerm_ + 1));
+
+    for (NodeId p : peers_) {
+        RequestVoteArgs a{currentTerm_ + 1, id_, log_.lastIndex(), log_.lastTerm()};
+        a.preVote = true;
+        pending_.push_back(Message{id_, p, a});
+    }
+}
+
 void RaftNode::becomeCandidate() {
     role_         = RaftRole::kCandidate;
+    leaderId_     = kNone;
     currentTerm_++;
     votedFor_     = id_;     // vote for self
     votesGranted_.clear();
@@ -90,6 +115,7 @@ void RaftNode::becomeCandidate() {
 
 void RaftNode::becomeLeader() {
     role_               = RaftRole::kLeader;
+    leaderId_           = id_;
     heartbeatElapsedMs_ = heartbeatIntervalMs_;  // fire immediately
     checkQuorumElapsedMs_ = 0;
     heardFrom_.clear();
@@ -195,7 +221,7 @@ std::vector<Message> RaftNode::tick(uint32_t ms) {
     // Follower / Candidate.
     electionElapsedMs_ += ms;
     if (electionElapsedMs_ >= electionTimeoutMs_) {
-        becomeCandidate();
+        startPreVote();
     }
     drainApplicable();
     return std::move(pending_);
@@ -225,8 +251,27 @@ std::vector<Message> RaftNode::step(const Message& msg) {
 // RequestVote handler
 // ─────────────────────────────────────────────────────────────────────────────
 
+void RaftNode::handlePreVote(const Message& msg, const RequestVoteArgs& args) {
+    RequestVoteReply rpl;
+    rpl.preVote = true;
+    rpl.term    = currentTerm_;
+
+    // Leader stickiness: refuse while we are leader or have recently heard
+    // from one (the election timer is reset on every valid leader message).
+    const bool sticky = role_ == RaftRole::kLeader ||
+                        (leaderId_ != kNone &&
+                         electionElapsedMs_ < electionTimeoutMinMs_);
+    if (args.term > currentTerm_ && !sticky &&
+        isLogUpToDate(args.lastLogIndex, args.lastLogTerm)) {
+        rpl.voteGranted = true;
+        rpl.term        = args.term;  // echo the probed term
+    }
+    pending_.push_back(Message{id_, msg.from, rpl});
+}
+
 void RaftNode::handleRequestVote(const Message& msg,
                                   const RequestVoteArgs& args) {
+    if (args.preVote) { handlePreVote(msg, args); return; }
     if (args.term > currentTerm_) becomeFollower(args.term);
 
     RequestVoteReply rpl;
@@ -253,6 +298,17 @@ void RaftNode::handleRequestVote(const Message& msg,
 
 void RaftNode::handleRequestVoteReply(const Message& msg,
                                        const RequestVoteReply& rpl) {
+    if (rpl.preVote) {
+        if (role_ != RaftRole::kPreCandidate) return;
+        if (!rpl.voteGranted) {
+            if (rpl.term > currentTerm_) becomeFollower(rpl.term);
+            return;
+        }
+        if (rpl.term != currentTerm_ + 1) return;  // stale probe
+        votesGranted_.insert(msg.from);
+        if (votesGranted_.size() >= quorum()) becomeCandidate();
+        return;
+    }
     if (rpl.term > currentTerm_) { becomeFollower(rpl.term); return; }
     if (role_ != RaftRole::kCandidate || rpl.term != currentTerm_) return;
     if (!rpl.voteGranted) return;
@@ -279,7 +335,8 @@ void RaftNode::handleAppendEntries(const Message& msg,
 
     // Valid leader: reset our election timer and ensure we're a follower.
     becomeFollower(args.term);
-    rpl.term = currentTerm_;
+    leaderId_ = args.leaderId;
+    rpl.term  = currentTerm_;
 
     if (!log_.tryAppend(args.prevLogIndex, args.prevLogTerm, args.entries)) {
         rpl.success       = false;
