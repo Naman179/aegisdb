@@ -3,9 +3,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   pull_request:
-    branches: [master]
+    branches: [main, master]
 
 jobs:
   # ─── Debug + -Werror ─────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ jobs:
       - name: Test
         run: ctest --test-dir build_asan --output-on-failure
 
-  # ─── ThreadSanitizer (stub – populated from milestone 4) ────────────────
+  # ─── ThreadSanitizer ─────────────────────────────────────────────────────
   tsan:
     name: Build & Test (TSAN)
     runs-on: ubuntu-latest
