@@ -9,6 +9,8 @@ add_executable(aegis_tests
     # Milestone 4 – Raft consensus
     raft/fake_network.h
     raft/raft_test.cpp
+    # Milestone 5 – Raft hardening
+    raft/raft_hardening_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
