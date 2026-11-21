@@ -292,7 +292,7 @@ bool WalReader::next(WalRecord* out) {
         uint32_t computedCrc = recordCrc(typeByte, len,
                                           len ? payload.data() : nullptr);
         if (computedCrc != storedCrc) {
-            LOG(LogLevel::WARNing, "WAL CRC mismatch – stopping replay");
+            LOG(LogLevel::WARN, "WAL CRC mismatch – stopping replay");
             ok_ = false;
             return false;
         }
