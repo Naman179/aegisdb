@@ -11,6 +11,8 @@ add_executable(aegis_tests
     raft/raft_test.cpp
     # Milestone 5 – Raft hardening
     raft/raft_hardening_test.cpp
+    # Milestone 7 – chaos (23 seeds)
+    raft/chaos_test.cpp
     # Milestone 9 – consistent hashing
     shard/hash_ring_test.cpp
 )
