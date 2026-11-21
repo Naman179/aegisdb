@@ -19,6 +19,7 @@ add_executable(aegis_tests
     shard/hash_ring_test.cpp
     # Milestone 8 – networking
     net/frame_stream_test.cpp
+    net/net_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
@@ -33,6 +34,7 @@ target_link_libraries(aegis_tests
     aegisdb_raft
     aegisdb_shard
     aegisdb_net
+    aegisdb_server
     gtest_main
 )
 
