@@ -339,14 +339,25 @@ void RaftNode::handleAppendEntries(const Message& msg,
     rpl.term  = currentTerm_;
 
     if (!log_.tryAppend(args.prevLogIndex, args.prevLogTerm, args.entries)) {
-        rpl.success       = false;
-        rpl.conflictIndex = log_.lastIndex() + 1;
-        rpl.conflictTerm  = 0;
+        rpl.success = false;
+        if (args.prevLogIndex > log_.lastIndex()) {
+            // Log too short: leader should resume right after our last entry.
+            rpl.conflictIndex = log_.lastIndex() + 1;
+            rpl.conflictTerm  = 0;
+        } else {
+            // Term mismatch at prevLogIndex: report the whole conflicting term
+            // so the leader can skip it in one round trip.
+            rpl.conflictTerm  = log_.termAt(args.prevLogIndex);
+            rpl.conflictIndex = log_.firstIndexOfTerm(args.prevLogIndex);
+        }
         pending_.push_back(Message{id_, msg.from, rpl});
         return;
     }
 
-    log_.setCommitIndex(args.leaderCommit);
+    // Only entries the leader has just verified match its log may be committed;
+    // our own tail beyond them could still be a divergent suffix.
+    const LogIndex lastNew = args.prevLogIndex + args.entries.size();
+    log_.setCommitIndex(std::min(args.leaderCommit, lastNew));
     drainApplicable();
 
     rpl.success    = true;
@@ -371,10 +382,18 @@ void RaftNode::handleAppendEntriesReply(const Message& msg,
         maybeAdvanceCommit();
     } else {
         // Fast back-track.
-        if (rpl.conflictIndex > 0)
-            nextIndex_[f] = rpl.conflictIndex;
-        else if (nextIndex_[f] > 1)
-            nextIndex_[f]--;
+        LogIndex next = nextIndex_[f];
+        if (rpl.conflictTerm != 0) {
+            // If we hold entries of the follower's conflicting term, resume
+            // just after our last one; otherwise skip the entire term.
+            const LogIndex ours = log_.lastIndexOfTerm(rpl.conflictTerm);
+            next = ours != 0 ? ours + 1 : rpl.conflictIndex;
+        } else if (rpl.conflictIndex > 0) {
+            next = rpl.conflictIndex;
+        } else if (next > 1) {
+            --next;
+        }
+        nextIndex_[f] = std::max<LogIndex>(1, next);
         // Retry immediately.
         sendAppendEntries(f);
     }
