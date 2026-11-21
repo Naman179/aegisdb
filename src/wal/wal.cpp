@@ -102,7 +102,7 @@ WalWriter::~WalWriter() {
 bool WalWriter::fsyncDir() {
     int dfd = ::open(dir_.c_str(), O_RDONLY);
     if (dfd < 0) {
-        LOG(LogLevel::kError, "WAL fsyncDir open(%s): %s",
+        LOG(LogLevel::ERROR, "WAL fsyncDir open(%s): %s",
             dir_.c_str(), strerror(errno));
         return false;
     }
@@ -120,7 +120,7 @@ bool WalWriter::openSegment(uint64_t id) {
     std::string path = segmentPath(dir_, id);
     fd_ = ::open(path.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd_ < 0) {
-        LOG(LogLevel::kError, "WAL openSegment(%s): %s",
+        LOG(LogLevel::ERROR, "WAL openSegment(%s): %s",
             path.c_str(), strerror(errno));
         return false;
     }
@@ -146,7 +146,7 @@ std::unique_ptr<WalWriter> WalWriter::open(const std::string& dir,
                                             uint64_t           maxSegmentBytes) {
     // Create the directory if it doesn't exist.
     if (::mkdir(dir.c_str(), 0755) == -1 && errno != EEXIST) {
-        LOG(LogLevel::kError, "WAL mkdir(%s): %s",
+        LOG(LogLevel::ERROR, "WAL mkdir(%s): %s",
             dir.c_str(), strerror(errno));
         return nullptr;
     }
@@ -181,7 +181,7 @@ bool WalWriter::append(WalRecordType type, const uint8_t* data, size_t len) {
     const auto& buf = bw.data();
     ssize_t written = ::write(fd_, buf.data(), buf.size());
     if (written != static_cast<ssize_t>(buf.size())) {
-        LOG(LogLevel::kError, "WAL write: %s", strerror(errno));
+        LOG(LogLevel::ERROR, "WAL write: %s", strerror(errno));
         return false;
     }
     bytesWritten_ += static_cast<uint64_t>(buf.size());
@@ -225,7 +225,7 @@ std::unique_ptr<WalReader> WalReader::open(const std::string& dir) {
     if (!r->segments_.empty()) {
         r->fd_ = ::open(r->segments_[0].c_str(), O_RDONLY);
         if (r->fd_ < 0) {
-            LOG(LogLevel::kError, "WAL WalReader::open(%s): %s",
+            LOG(LogLevel::ERROR, "WAL WalReader::open(%s): %s",
                 r->segments_[0].c_str(), strerror(errno));
             return nullptr;
         }
@@ -240,7 +240,7 @@ bool WalReader::openNextSegment() {
 
     fd_ = ::open(segments_[segIdx_].c_str(), O_RDONLY);
     if (fd_ < 0) {
-        LOG(LogLevel::kError, "WAL WalReader::openNextSegment(%s): %s",
+        LOG(LogLevel::ERROR, "WAL WalReader::openNextSegment(%s): %s",
             segments_[segIdx_].c_str(), strerror(errno));
         ok_ = false;
         return false;
@@ -292,7 +292,7 @@ bool WalReader::next(WalRecord* out) {
         uint32_t computedCrc = recordCrc(typeByte, len,
                                           len ? payload.data() : nullptr);
         if (computedCrc != storedCrc) {
-            LOG(LogLevel::kWarning, "WAL CRC mismatch – stopping replay");
+            LOG(LogLevel::WARNing, "WAL CRC mismatch – stopping replay");
             ok_ = false;
             return false;
         }
