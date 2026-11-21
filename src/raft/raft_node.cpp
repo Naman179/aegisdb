@@ -70,7 +70,7 @@ void RaftNode::becomeCandidate() {
     votesGranted_.insert(id_);
     resetElectionTimeout();
 
-    LOG(LogLevel::kInfo, "node %u starting election term %llu",
+    LOG(LogLevel::INFO, "node %u starting election term %llu",
         id_, (unsigned long long)currentTerm_);
 
     // Broadcast RequestVote to all peers.
@@ -93,7 +93,7 @@ void RaftNode::becomeLeader() {
         matchIndex_[p] = 0;
     }
 
-    LOG(LogLevel::kInfo, "node %u became LEADER term %llu",
+    LOG(LogLevel::INFO, "node %u became LEADER term %llu",
         id_, (unsigned long long)currentTerm_);
 
     broadcastAppendEntries();
@@ -210,7 +210,7 @@ void RaftNode::handleRequestVote(const Message& msg,
         votedFor_       = args.candidateId;
         rpl.voteGranted = true;
         resetElectionTimeout();
-        LOG(LogLevel::kInfo, "node %u voted for %u term %llu",
+        LOG(LogLevel::INFO, "node %u voted for %u term %llu",
             id_, args.candidateId, (unsigned long long)args.term);
     }
 
