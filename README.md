@@ -57,6 +57,32 @@ cmake -S . -B build_tsan -DCMAKE_BUILD_TYPE=Debug -DAEGIS_TSAN=ON
 | 12 | Rebalance | 🔲 |
 | 13 | Docker, CI, README | 🔲 |
 
+## Raft design notes
+
+`RaftNode` is a deterministic, single-threaded state machine driven by `tick(ms)` and
+`step(msg)`; the harness (or, later, the TCP transport) moves messages. That makes every
+fault scenario reproducible from a seed.
+
+| Mechanism | Why it exists |
+|-----------|---------------|
+| PreVote + leader stickiness | A partitioned node never gathers pre-votes, so its term cannot inflate and unseat a healthy leader when it rejoins |
+| CheckQuorum | A leader that has not heard from a majority within one minimum election timeout steps down and stops accepting writes |
+| Leader no-op | Committing an entry from the new term commits everything before it (the "Figure 8" rule) and unlocks ReadIndex |
+| `conflictTerm` fast backtracking | A rejected AppendEntries lets the leader skip a whole conflicting term in one round trip |
+| Commit capped at last verified entry | A follower never commits its own unverified tail just because `leaderCommit` is larger |
+| ReadIndex | Linearizable reads: record the commit index, confirm leadership with one heartbeat quorum, then wait for apply |
+| Snapshots / InstallSnapshot | The log keeps a sentinel at the snapshot index; followers that need compacted entries receive the snapshot |
+
+## Tests
+
+* `RaftTest` (18), `RaftHardening` (16), `RaftLogSnapshot` + `RaftSnapshot` (10) – unit and
+  scenario tests on the in-memory `FakeNetwork`.
+* `ChaosTest` (23 seeds) – random isolation, 10% message loss and proposals on stale leaders;
+  asserts election safety, committed-entry stability, no duplicate applies and convergence.
+* `HashRingTest` (8), `NetTest` (8), `KvStoreTest`, `WalTest`, codec/CRC/logger tests.
+
+The WAL uses POSIX directory `fsync`, so it builds and tests on Linux only.
+
 ---
 
 *Full architecture diagram, WAL format, test inventory, measured results, design trade-offs, and known limitations will be added in milestone 13.*
