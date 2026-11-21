@@ -30,6 +30,11 @@ public:
     Term     termAt(LogIndex idx) const;   // 0 if out of range
     const LogEntry* entryAt(LogIndex idx) const;
 
+    // First index whose term equals termAt(idx), scanning backwards from idx.
+    LogIndex firstIndexOfTerm(LogIndex idx) const;
+    // Highest index holding `term`, or 0 if the log has no entry of that term.
+    LogIndex lastIndexOfTerm(Term term) const;
+
     // Returns entries in [from, lastIndex], empty if from > lastIndex.
     std::vector<LogEntry> entriesFrom(LogIndex from) const;
 

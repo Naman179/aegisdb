@@ -67,6 +67,19 @@ const LogEntry* RaftLog::entryAt(LogIndex idx) const {
     return &entries_[idx];
 }
 
+LogIndex RaftLog::firstIndexOfTerm(LogIndex idx) const {
+    if (idx == 0 || idx >= static_cast<LogIndex>(entries_.size())) return idx;
+    const Term t = entries_[idx].term;
+    while (idx > 1 && entries_[idx - 1].term == t) --idx;
+    return idx;
+}
+
+LogIndex RaftLog::lastIndexOfTerm(Term term) const {
+    for (LogIndex i = lastIndex(); i > 0; --i)
+        if (entries_[i].term == term) return i;
+    return 0;
+}
+
 std::vector<LogEntry> RaftLog::entriesFrom(LogIndex from) const {
     if (from >= static_cast<LogIndex>(entries_.size())) return {};
     return {
