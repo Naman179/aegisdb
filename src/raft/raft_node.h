@@ -64,6 +64,7 @@ private:
     bool isLogUpToDate(LogIndex lastIdx, Term lastTerm) const;
     size_t quorum() const { return (peers_.size() + 1) / 2 + 1; }
     void maybeAdvanceCommit();
+    bool checkQuorumHealthy();
     void broadcastAppendEntries();
     void sendAppendEntries(NodeId to);
     void drainApplicable();
@@ -99,6 +100,8 @@ private:
 
     // ── Leader state ──────────────────────────────────────────────────────────
     uint32_t                   heartbeatElapsedMs_{0};
+    uint32_t                   checkQuorumElapsedMs_{0};
+    std::set<NodeId>           heardFrom_;   // peers that replied this window
     std::map<NodeId, LogIndex> nextIndex_;
     std::map<NodeId, LogIndex> matchIndex_;
 

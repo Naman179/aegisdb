@@ -91,6 +91,8 @@ void RaftNode::becomeCandidate() {
 void RaftNode::becomeLeader() {
     role_               = RaftRole::kLeader;
     heartbeatElapsedMs_ = heartbeatIntervalMs_;  // fire immediately
+    checkQuorumElapsedMs_ = 0;
+    heardFrom_.clear();
 
     LogIndex nextIdx = log_.lastIndex() + 1;
     for (NodeId p : peers_) {
@@ -159,10 +161,28 @@ void RaftNode::maybeAdvanceCommit() {
 // tick
 // ─────────────────────────────────────────────────────────────────────────────
 
+bool RaftNode::checkQuorumHealthy() {
+    const size_t reachable = heardFrom_.size() + 1;  // + self
+    heardFrom_.clear();
+    return reachable >= quorum();
+}
+
 std::vector<Message> RaftNode::tick(uint32_t ms) {
     pending_.clear();
 
     if (role_ == RaftRole::kLeader) {
+        // CheckQuorum: a leader that cannot reach a majority within one
+        // minimum election timeout steps down so it stops accepting writes.
+        checkQuorumElapsedMs_ += ms;
+        if (checkQuorumElapsedMs_ >= electionTimeoutMinMs_) {
+            checkQuorumElapsedMs_ = 0;
+            if (!checkQuorumHealthy()) {
+                LOG(LogLevel::WARN, "node %u lost quorum contact, stepping down term %llu",
+                    id_, (unsigned long long)currentTerm_);
+                becomeFollower(currentTerm_);
+                return std::move(pending_);
+            }
+        }
         heartbeatElapsedMs_ += ms;
         if (heartbeatElapsedMs_ >= heartbeatIntervalMs_) {
             heartbeatElapsedMs_ = 0;
@@ -287,6 +307,7 @@ void RaftNode::handleAppendEntriesReply(const Message& msg,
     if (role_ != RaftRole::kLeader || rpl.term != currentTerm_) return;
 
     NodeId f = msg.from;
+    heardFrom_.insert(f);  // any same-term reply proves the peer is reachable
     if (rpl.success) {
         matchIndex_[f] = std::max(matchIndex_[f], rpl.matchIndex);
         nextIndex_[f]  = matchIndex_[f] + 1;
