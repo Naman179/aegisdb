@@ -62,6 +62,7 @@ public:
     LogIndex commitIndex()  const { return log_.commitIndex(); }
     LogIndex lastLogIndex() const { return log_.lastIndex(); }
     LogIndex lastApplied()  const { return log_.lastApplied(); }
+    const RaftLog& log()    const { return log_; }  // read-only, for tests/diagnostics
 
 private:
     // ── Role transitions ──────────────────────────────────────────────────────
