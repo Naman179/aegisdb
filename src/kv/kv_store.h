@@ -32,6 +32,7 @@ enum class KvCommandType : uint8_t {
     kPut    = 1,
     kDelete = 2,
     kGet    = 3,  // read-only; recorded only for linearisability proof tests
+    kCas    = 4,  // compare-and-swap
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,10 +40,11 @@ enum class KvCommandType : uint8_t {
 // ─────────────────────────────────────────────────────────────────────────────
 struct KvCommand {
     KvCommandType type{KvCommandType::kPut};
-    uint64_t      sessionId{0};  // duplicate-detection key
-    uint64_t      seqNo{0};      // per-session sequence number
+    uint64_t      sessionId{0};       // duplicate-detection key
+    uint64_t      seqNo{0};           // per-session sequence number
     std::string   key;
-    std::string   value;         // unused for kDelete / kGet
+    std::string   value;              // unused for kDelete / kGet
+    uint64_t      expectedVersion{0}; // used for kCas: must match current version (0 = absent)
 
     // Serialise to / from bytes (little-endian, no external deps).
     std::vector<uint8_t> encode() const;

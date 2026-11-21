@@ -26,6 +26,7 @@ std::vector<uint8_t> KvCommand::encode() const {
     bw.putU64(seqNo);
     bw.putString(key);
     bw.putString(value);
+    bw.putU64(expectedVersion);
     return bw.take();
 }
 
@@ -37,6 +38,11 @@ bool KvCommand::decode(const uint8_t* data, size_t len, KvCommand& out) {
     if (!br.getU64(out.seqNo))       return false;
     if (!br.getString(out.key))      return false;
     if (!br.getString(out.value))    return false;
+    if (br.remaining() >= sizeof(uint64_t)) {
+        br.getU64(out.expectedVersion);
+    } else {
+        out.expectedVersion = 0;
+    }
     out.type = static_cast<KvCommandType>(typeByte);
     return true;
 }
@@ -86,6 +92,22 @@ KvResult KvStore::apply(const KvCommand& cmd) {
             result.ok      = true;
             result.value   = it->second.value;
             result.version = it->second.version;
+        }
+        break;
+    }
+    case KvCommandType::kCas: {
+        auto it = store_.find(cmd.key);
+        uint64_t curVer = (it != store_.end()) ? it->second.version : 0;
+        if (curVer != cmd.expectedVersion) {
+            result.ok      = false;
+            result.version = curVer;
+        } else {
+            auto& entry    = store_[cmd.key];
+            entry.value    = cmd.value;
+            entry.version++;
+            result.ok      = true;
+            result.version = entry.version;
+            result.value   = entry.value;
         }
         break;
     }

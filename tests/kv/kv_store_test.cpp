@@ -115,5 +115,49 @@ TEST(KvStoreTest, SnapshotRestoreRoundtrip) {
     EXPECT_EQ(dst.get("b").value_or(""), "banana");    // value unchanged
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CAS Tests
+// ─────────────────────────────────────────────────────────────────────────────
+TEST(KvStoreTest, CasZeroMeansAbsent) {
+    KvStore kv;
+    // Key does not exist; CAS with expectedVersion = 0 creates it
+    KvCommand cas{KvCommandType::kCas, 0, 0, "alpha", "init", 0};
+    auto r = kv.apply(cas);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.version, 1u);
+    EXPECT_EQ(kv.get("alpha").value_or(""), "init");
+
+    // Key now exists; CAS with expectedVersion = 0 fails
+    KvCommand casFail{KvCommandType::kCas, 0, 0, "alpha", "dup", 0};
+    auto rFail = kv.apply(casFail);
+    EXPECT_FALSE(rFail.ok);
+    EXPECT_EQ(rFail.version, 1u);
+    EXPECT_EQ(kv.get("alpha").value_or(""), "init");
+}
+
+TEST(KvStoreTest, CasSucceedsOnMatch) {
+    KvStore kv;
+    kv.apply({KvCommandType::kPut, 0, 0, "beta", "v1"});
+    EXPECT_EQ(kv.version("beta"), 1u);
+
+    KvCommand cas{KvCommandType::kCas, 0, 0, "beta", "v2", 1u};
+    auto r = kv.apply(cas);
+    EXPECT_TRUE(r.ok);
+    EXPECT_EQ(r.version, 2u);
+    EXPECT_EQ(kv.get("beta").value_or(""), "v2");
+}
+
+TEST(KvStoreTest, CasFailsOnMismatch) {
+    KvStore kv;
+    kv.apply({KvCommandType::kPut, 0, 0, "gamma", "v1"});
+    EXPECT_EQ(kv.version("gamma"), 1u);
+
+    KvCommand cas{KvCommandType::kCas, 0, 0, "gamma", "v3", 99u};
+    auto r = kv.apply(cas);
+    EXPECT_FALSE(r.ok);
+    EXPECT_EQ(r.version, 1u);
+    EXPECT_EQ(kv.get("gamma").value_or(""), "v1");
+}
+
 }  // namespace
 }  // namespace aegis
