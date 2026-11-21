@@ -18,6 +18,7 @@ enum class RaftRole : uint8_t {
     kFollower  = 0,
     kCandidate = 1,
     kLeader    = 2,
+    kPreCandidate = 3,  // PreVote phase: term not yet incremented
 };
 
 // ── Log entry ─────────────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ struct LogEntry {
     Term                 term{0};
     LogIndex             index{0};
     std::vector<uint8_t> data;
+    bool                 noop{false};  // leader's term-start marker; never applied
 };
 
 // ── RequestVote ───────────────────────────────────────────────────────────────
@@ -33,11 +35,13 @@ struct RequestVoteArgs {
     NodeId   candidateId{kNone};
     LogIndex lastLogIndex{0};
     Term     lastLogTerm{0};
+    bool     preVote{false};  // true: probe only, do not change term/vote
 };
 
 struct RequestVoteReply {
     Term term{0};
     bool voteGranted{false};
+    bool preVote{false};  // echoes the request's preVote flag
 };
 
 // ── AppendEntries ─────────────────────────────────────────────────────────────
