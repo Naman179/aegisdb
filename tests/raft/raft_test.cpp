@@ -103,31 +103,30 @@ TEST(RaftTest, FollowerDeniesSecondVoteInSameTerm) {
 TEST(RaftTest, CandidateWinsWithMajority) {
     // Node 1 is a candidate in term 1.
     RaftNode n1(1, {2, 3}, 1, 1, 50, 0);  // 1ms timeout → starts election immediately
-    auto out1 = n1.tick(5);  // triggers election
-    ASSERT_EQ(n1.role(), RaftRole::kCandidate);
+    auto out1 = n1.tick(5);  // timeout → PreVote phase first
+    ASSERT_EQ(n1.role(), RaftRole::kPreCandidate);
+    EXPECT_EQ(n1.currentTerm(), 0u) << "PreVote must not bump the term";
 
-    // Deliver RequestVote to nodes 2 and 3 (they're fresh followers).
+    // Nodes 2 and 3 are fresh followers (no known leader → they grant).
     RaftNode n2(2, {1, 3}, 300, 300, 50, 0);
     RaftNode n3(3, {1, 2}, 300, 300, 50, 0);
 
-    std::vector<Message> responses;
-    for (auto& m : out1) {
-        if (m.to == 2) {
-            auto r = n2.step(m);
-            responses.insert(responses.end(), r.begin(), r.end());
+    // Route messages until the exchange is quiescent: PreVote → real vote.
+    std::vector<Message> queue = std::move(out1);
+    for (int round = 0; round < 6 && !queue.empty(); ++round) {
+        std::vector<Message> next;
+        for (auto& m : queue) {
+            std::vector<Message> r;
+            if (m.to == 1) r = n1.step(m);
+            if (m.to == 2) r = n2.step(m);
+            if (m.to == 3) r = n3.step(m);
+            next.insert(next.end(), r.begin(), r.end());
         }
-        if (m.to == 3) {
-            auto r = n3.step(m);
-            responses.insert(responses.end(), r.begin(), r.end());
-        }
-    }
-
-    // Deliver vote replies back to n1.
-    for (auto& m : responses) {
-        if (m.to == 1) n1.step(m);
+        queue = std::move(next);
     }
 
     EXPECT_TRUE(n1.isLeader());
+    EXPECT_EQ(n1.currentTerm(), 1u);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
