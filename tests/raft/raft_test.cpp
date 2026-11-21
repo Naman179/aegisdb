@@ -2,7 +2,7 @@
 #include "raft/raft_node.h"
 #include "raft/raft_log.h"
 #include "raft/raft_types.h"
-#include "raft/fake_network.h"
+#include "fake_network.h"
 
 #include <string>
 #include <vector>
