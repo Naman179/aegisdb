@@ -14,9 +14,9 @@ RaftLog::RaftLog() {
 
 // ── Leader: unconditional append ─────────────────────────────────────────────
 
-LogIndex RaftLog::append(Term term, std::vector<uint8_t> data) {
+LogIndex RaftLog::append(Term term, std::vector<uint8_t> data, bool noop) {
     LogIndex idx = static_cast<LogIndex>(entries_.size());
-    entries_.push_back(LogEntry{term, idx, std::move(data)});
+    entries_.push_back(LogEntry{term, idx, std::move(data), noop});
     return idx;
 }
 

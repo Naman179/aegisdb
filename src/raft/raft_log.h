@@ -16,7 +16,7 @@ public:
 
     // ── Leader API ────────────────────────────────────────────────────────────
     // Append a new entry (leader only). Returns the new entry's index.
-    LogIndex append(Term term, std::vector<uint8_t> data);
+    LogIndex append(Term term, std::vector<uint8_t> data, bool noop = false);
 
     // ── Follower API ──────────────────────────────────────────────────────────
     // Try to append `entries` after prevLogIndex/prevLogTerm.

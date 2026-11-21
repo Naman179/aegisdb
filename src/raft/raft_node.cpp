@@ -45,8 +45,10 @@ bool RaftNode::isLogUpToDate(LogIndex lastIdx, Term lastTerm) const {
 }
 
 void RaftNode::drainApplicable() {
-    auto entries = log_.takeApplicable();
-    applied_.insert(applied_.end(), entries.begin(), entries.end());
+    for (auto& e : log_.takeApplicable()) {
+        if (e.noop) continue;  // protocol-internal, never reaches the state machine
+        applied_.push_back(std::move(e));
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +97,11 @@ void RaftNode::becomeLeader() {
         nextIndex_[p]  = nextIdx;
         matchIndex_[p] = 0;
     }
+
+    // Append a no-op in the new term. Committing it commits every earlier
+    // entry (Raft §5.4.2 / "Figure 8") and lets the leader learn the true
+    // commit index before serving reads.
+    log_.append(currentTerm_, {}, /*noop=*/true);
 
     LOG(LogLevel::INFO, "node %u became LEADER term %llu",
         id_, (unsigned long long)currentTerm_);
