@@ -106,12 +106,13 @@ TEST(KvStoreTest, SnapshotRestoreRoundtrip) {
     EXPECT_EQ(dst.get("b").value_or(""), "banana");
     EXPECT_EQ(dst.get("c").value_or(""), "cherry");
 
-    // Session cache must also be restored – replaying a command on dst should
-    // return the cached result without mutating the store.
-    KvCommand dup{KvCommandType::kPut, 1u, 1u, "a", "CHANGED"};
+    // Session cache must also be restored – replaying a session's most recent
+    // command on dst should return the cached result without mutating the store.
+    // (Session 1's last command was seq 2, the Put of "b".)
+    KvCommand dup{KvCommandType::kPut, 1u, 2u, "b", "CHANGED"};
     auto r = dst.apply(dup);
-    EXPECT_EQ(r.version, 1u);             // cached, not bumped
-    EXPECT_EQ(dst.get("a").value_or(""), "apple");  // value unchanged
+    EXPECT_EQ(r.version, 1u);                          // cached, not bumped
+    EXPECT_EQ(dst.get("b").value_or(""), "banana");    // value unchanged
 }
 
 }  // namespace
