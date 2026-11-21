@@ -36,3 +36,10 @@ add_library(aegisdb_shard STATIC
     shard/hash_ring.cpp
 )
 target_include_directories(aegisdb_shard PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# ── Milestone 8: Networking (framing) ─────────────────────────────────────────
+add_library(aegisdb_net STATIC
+    net/frame_stream.cpp
+)
+target_include_directories(aegisdb_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(aegisdb_net PUBLIC aegisdb_common)
