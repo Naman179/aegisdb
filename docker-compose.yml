@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  n1:
+    build: .
+    container_name: aegis_n1
+    command: ["--id", "1", "--client-port", "7001", "--peer-port", "8001", "--peers", "1:n1:7001:8001,2:n2:7002:8002,3:n3:7003:8003,4:n4:7004:8004,5:n5:7005:8005", "--data-dir", "/data"]
+    ports:
+      - "7001:7001"
+      - "8001:8001"
+    volumes:
+      - n1-data:/data
+    networks:
+      - aegis-net
+
+  n2:
+    build: .
+    container_name: aegis_n2
+    command: ["--id", "2", "--client-port", "7002", "--peer-port", "8002", "--peers", "1:n1:7001:8001,2:n2:7002:8002,3:n3:7003:8003,4:n4:7004:8004,5:n5:7005:8005", "--data-dir", "/data"]
+    ports:
+      - "7002:7002"
+      - "8002:8002"
+    volumes:
+      - n2-data:/data
+    networks:
+      - aegis-net
+
+  n3:
+    build: .
+    container_name: aegis_n3
+    command: ["--id", "3", "--client-port", "7003", "--peer-port", "8003", "--peers", "1:n1:7001:8001,2:n2:7002:8002,3:n3:7003:8003,4:n4:7004:8004,5:n5:7005:8005", "--data-dir", "/data"]
+    ports:
+      - "7003:7003"
+      - "8003:8003"
+    volumes:
+      - n3-data:/data
+    networks:
+      - aegis-net
+
+  n4:
+    build: .
+    container_name: aegis_n4
+    command: ["--id", "4", "--client-port", "7004", "--peer-port", "8004", "--peers", "1:n1:7001:8001,2:n2:7002:8002,3:n3:7003:8003,4:n4:7004:8004,5:n5:7005:8005", "--data-dir", "/data"]
+    ports:
+      - "7004:7004"
+      - "8004:8004"
+    volumes:
+      - n4-data:/data
+    networks:
+      - aegis-net
+
+  n5:
+    build: .
+    container_name: aegis_n5
+    command: ["--id", "5", "--client-port", "7005", "--peer-port", "8005", "--peers", "1:n1:7001:8001,2:n2:7002:8002,3:n3:7003:8003,4:n4:7004:8004,5:n5:7005:8005", "--data-dir", "/data"]
+    ports:
+      - "7005:7005"
+      - "8005:8005"
+    volumes:
+      - n5-data:/data
+    networks:
+      - aegis-net
+
+volumes:
+  n1-data:
+  n2-data:
+  n3-data:
+  n4-data:
+  n5-data:
+
+networks:
+  aegis-net:
+    driver: bridge
