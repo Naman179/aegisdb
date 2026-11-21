@@ -30,3 +30,9 @@ add_library(aegisdb_raft STATIC
 )
 target_include_directories(aegisdb_raft PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(aegisdb_raft PUBLIC aegisdb_common)
+
+# ── Milestone 9: Consistent-hash ring ─────────────────────────────────────────
+add_library(aegisdb_shard STATIC
+    shard/hash_ring.cpp
+)
+target_include_directories(aegisdb_shard PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
