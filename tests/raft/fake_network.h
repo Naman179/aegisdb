@@ -91,6 +91,7 @@ public:
     RaftNode* leader() {
         RaftNode* found = nullptr;
         for (auto& [id, n] : nodes_) {
+            if (partitioned_.count(id)) continue;  // isolated nodes don't count
             if (n.isLeader()) {
                 if (found) return nullptr;  // multiple leaders
                 found = &n;
@@ -101,7 +102,8 @@ public:
 
     int leaderCount() {
         int c = 0;
-        for (auto& [id, n] : nodes_) if (n.isLeader()) ++c;
+        for (auto& [id, n] : nodes_)
+            if (!partitioned_.count(id) && n.isLeader()) ++c;
         return c;
     }
 
