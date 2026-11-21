@@ -3,6 +3,7 @@
 #include "raft/raft_node.h"
 #include "fake_network.h"
 
+#include <initializer_list>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -92,6 +93,91 @@ TEST(RaftLogSnapshot, FirstAndLastIndexOfTermRespectSnapshot) {
     EXPECT_EQ(log.lastIndexOfTerm(1), 4u);
     EXPECT_EQ(log.lastIndexOfTerm(2), 8u);
     EXPECT_EQ(log.lastIndexOfTerm(9), 0u);
+}
+
+// ── Node level ───────────────────────────────────────────────────────────────
+
+void run(FakeNetwork& net, uint32_t ms) {
+    for (uint32_t e = 0; e < ms; e += 10) net.tick(10, 10);
+}
+
+NodeId someFollower(FakeNetwork& net, std::initializer_list<NodeId> ids) {
+    for (NodeId id : ids) if (id != net.leader()->id()) return id;
+    return kNone;
+}
+
+TEST(RaftSnapshot, LaggingFollowerGetsSnapshot) {
+    FakeNetwork net({1, 2, 3});
+    ASSERT_TRUE(net.tickUntilLeader(1000));
+    run(net, 100);
+    NodeId lag = someFollower(net, {1, 2, 3});
+    net.isolate(lag);
+
+    auto* ldr = net.leader();
+    ASSERT_NE(ldr, nullptr);
+    for (int i = 0; i < 20; ++i) {
+        ASSERT_TRUE(ldr->propose(bytes("cmd" + std::to_string(i))));
+        net.deliver(ldr->takePending(), 10);
+    }
+    run(net, 200);
+    LogIndex applied = ldr->lastApplied();
+    ASSERT_GE(applied, 20u);
+
+    // Leader snapshots and drops its log prefix; the lagging node can no
+    // longer be caught up with AppendEntries alone.
+    ASSERT_TRUE(ldr->compact(applied, bytes("STATE@" + std::to_string(applied))));
+    ASSERT_TRUE(ldr->propose(bytes("after-snapshot")));
+    net.deliver(ldr->takePending(), 10);
+    run(net, 100);
+
+    net.heal(lag);
+    run(net, 500);
+
+    auto& follower = net.node(lag);
+    auto snap = follower.takeInstalledSnapshot();
+    ASSERT_TRUE(snap.has_value()) << "follower should have received InstallSnapshot";
+    EXPECT_EQ(snap->index, applied);
+    EXPECT_EQ(std::string(snap->data.begin(), snap->data.end()),
+              "STATE@" + std::to_string(applied));
+    EXPECT_EQ(follower.lastLogIndex(), ldr->lastLogIndex());
+    EXPECT_EQ(follower.commitIndex(), ldr->commitIndex());
+
+    // Entries after the snapshot arrive through the normal apply stream.
+    auto tail = follower.takeApplied();
+    ASSERT_FALSE(tail.empty());
+    EXPECT_EQ(std::string(tail.back().data.begin(), tail.back().data.end()),
+              "after-snapshot");
+}
+
+TEST(RaftSnapshot, StaleSnapshotIsIgnored) {
+    FakeNetwork net({1, 2, 3});
+    ASSERT_TRUE(net.tickUntilLeader(1000));
+    run(net, 100);
+    auto* ldr = net.leader();
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_TRUE(ldr->propose(bytes("c")));
+        net.deliver(ldr->takePending(), 10);
+    }
+    run(net, 100);
+
+    NodeId f = someFollower(net, {1, 2, 3});
+    LogIndex commit = net.node(f).commitIndex();
+    ASSERT_GE(commit, 5u);
+
+    // A snapshot covering less than we have committed must not rewind us.
+    InstallSnapshotArgs old{ldr->currentTerm(), ldr->id(), 2, 1, bytes("old")};
+    auto out = net.node(f).step(Message{ldr->id(), f, old});
+    ASSERT_EQ(out.size(), 1u);
+    EXPECT_FALSE(net.node(f).takeInstalledSnapshot().has_value());
+    EXPECT_EQ(net.node(f).commitIndex(), commit);
+    EXPECT_GE(std::get<InstallSnapshotReply>(out[0].payload).lastIncludedIndex, commit);
+}
+
+TEST(RaftSnapshot, CompactRefusedBeyondApplied) {
+    FakeNetwork net({1});
+    ASSERT_TRUE(net.tickUntilLeader(500));
+    auto& n = net.node(1);
+    EXPECT_FALSE(n.compact(n.lastApplied() + 5, bytes("x")));
 }
 
 }  // namespace
