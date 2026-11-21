@@ -55,6 +55,15 @@ endif()
 # ── Milestone 9: Server & Thread Pool ────────────────────────────────────────
 add_library(aegisdb_server STATIC
     server/thread_pool.cpp
+    server/client_protocol.cpp
+    server/server.cpp
 )
 target_include_directories(aegisdb_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(aegisdb_server PUBLIC aegisdb_common aegisdb_net aegisdb_shard aegisdb_kv aegisdb_wal)
+target_link_libraries(aegisdb_server PUBLIC aegisdb_common aegisdb_net aegisdb_shard aegisdb_kv aegisdb_wal aegisdb_raft)
+
+# ── aegisd daemon executable ─────────────────────────────────────────────────
+add_executable(aegisd
+    main.cpp
+)
+target_include_directories(aegisd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(aegisd PRIVATE aegisdb_server aegisdb_net aegisdb_raft aegisdb_kv aegisdb_wal aegisdb_shard aegisdb_common)
