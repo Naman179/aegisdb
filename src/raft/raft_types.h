@@ -3,6 +3,7 @@
 // raft_types.h – Shared primitive types and RPC message structs for Raft
 // ─────────────────────────────────────────────────────────────────────────────
 #include <cstdint>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -72,12 +73,39 @@ struct ReadState {
     LogIndex index{0};
 };
 
+// ── InstallSnapshot ───────────────────────────────────────────────────────────
+// Sent instead of AppendEntries when a follower needs entries the leader has
+// already compacted. In this in-process model the payload travels in one
+// message; the TCP transport splits it into chunks.
+struct InstallSnapshotArgs {
+    Term                 term{0};
+    NodeId               leaderId{kNone};
+    LogIndex             lastIncludedIndex{0};
+    Term                 lastIncludedTerm{0};
+    std::vector<uint8_t> data;  // state-machine snapshot bytes
+};
+
+struct InstallSnapshotReply {
+    Term     term{0};
+    NodeId   followerId{kNone};
+    LogIndex lastIncludedIndex{0};  // what the follower now has through
+};
+
+// A snapshot a follower has accepted; the application must restore it into
+// its state machine before applying anything newer.
+struct InstalledSnapshot {
+    LogIndex             index{0};
+    Term                 term{0};
+    std::vector<uint8_t> data;
+};
+
 // ── Generic message wrapper ───────────────────────────────────────────────────
 struct Message {
     NodeId from{kNone};
     NodeId to{kNone};
     std::variant<RequestVoteArgs,   RequestVoteReply,
-                 AppendEntriesArgs, AppendEntriesReply> payload;
+                 AppendEntriesArgs, AppendEntriesReply,
+                 InstallSnapshotArgs, InstallSnapshotReply> payload;
 };
 
 }  // namespace aegis
