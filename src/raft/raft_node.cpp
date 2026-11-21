@@ -62,6 +62,7 @@ void RaftNode::becomeFollower(Term term) {
         leaderId_    = kNone;
     }
     role_ = RaftRole::kFollower;
+    pendingReads_.clear();  // unconfirmed reads must be retried on the new leader
     resetElectionTimeout();
 }
 
@@ -141,7 +142,7 @@ void RaftNode::becomeLeader() {
 // AppendEntries helpers (leader side)
 // ─────────────────────────────────────────────────────────────────────────────
 
-void RaftNode::sendAppendEntries(NodeId to) {
+void RaftNode::sendAppendEntries(NodeId to, uint64_t readCtx) {
     LogIndex next     = nextIndex_.count(to) ? nextIndex_[to] : 1u;
     LogIndex prevIdx  = next - 1;
     Term     prevTerm = log_.termAt(prevIdx);
@@ -151,7 +152,8 @@ void RaftNode::sendAppendEntries(NodeId to) {
             currentTerm_, id_,
             prevIdx, prevTerm,
             log_.entriesFrom(next),
-            log_.commitIndex()
+            log_.commitIndex(),
+            readCtx
         }
     });
 }
@@ -326,6 +328,7 @@ void RaftNode::handleAppendEntries(const Message& msg,
     AppendEntriesReply rpl;
     rpl.followerId = id_;
     rpl.term       = currentTerm_;
+    rpl.readCtx    = args.readCtx;
 
     if (args.term < currentTerm_) {
         // Stale leader – reject.
@@ -376,6 +379,7 @@ void RaftNode::handleAppendEntriesReply(const Message& msg,
 
     NodeId f = msg.from;
     heardFrom_.insert(f);  // any same-term reply proves the peer is reachable
+    if (rpl.readCtx != 0) ackReads(f, rpl.readCtx);
     if (rpl.success) {
         matchIndex_[f] = std::max(matchIndex_[f], rpl.matchIndex);
         nextIndex_[f]  = matchIndex_[f] + 1;
@@ -409,6 +413,41 @@ bool RaftNode::propose(std::vector<uint8_t> data) {
     pending_.clear();
     broadcastAppendEntries();
     return true;
+}
+
+uint64_t RaftNode::requestRead() {
+    if (!isLeader()) return 0;
+    // Until we commit an entry from our own term our commit index may lag
+    // what previous leaders already committed (hence the election no-op).
+    if (log_.termAt(log_.commitIndex()) != currentTerm_) return 0;
+
+    PendingRead pr{++readSeq_, log_.commitIndex(), {id_}};
+    if (pr.acks.size() >= quorum()) {  // single-node cluster
+        readStates_.push_back(ReadState{pr.id, pr.index});
+        return pr.id;
+    }
+    for (NodeId p : peers_) sendAppendEntries(p, pr.id);
+    pendingReads_.push_back(std::move(pr));
+    return readSeq_;
+}
+
+void RaftNode::ackReads(NodeId from, uint64_t ctx) {
+    for (auto& pr : pendingReads_)
+        if (pr.id <= ctx) pr.acks.insert(from);  // a later round also confirms earlier ones
+
+    auto it = pendingReads_.begin();
+    while (it != pendingReads_.end()) {
+        if (it->acks.size() >= quorum()) {
+            readStates_.push_back(ReadState{it->id, it->index});
+            it = pendingReads_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+std::vector<ReadState> RaftNode::takeReadStates() {
+    return std::move(readStates_);
 }
 
 std::vector<Message> RaftNode::takePending() {

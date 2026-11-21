@@ -41,6 +41,14 @@ public:
     // Drain the pending outbound queue (call after propose or as needed).
     std::vector<Message> takePending();
 
+    // ReadIndex (linearizable reads, Raft thesis §6.4). Leader only.
+    // Returns a read id (>0), or 0 if this node is not a leader that has
+    // committed an entry in its own term yet. Call takePending() afterwards
+    // to send the confirming heartbeat round. Once a majority has answered,
+    // the read shows up in takeReadStates() with the commit index to wait for.
+    uint64_t requestRead();
+    std::vector<ReadState> takeReadStates();
+
     // Drain entries that have been committed and applied.
     std::vector<LogEntry> takeApplied();
 
@@ -53,6 +61,7 @@ public:
     NodeId   leaderId()     const { return leaderId_; }  // kNone if unknown
     LogIndex commitIndex()  const { return log_.commitIndex(); }
     LogIndex lastLogIndex() const { return log_.lastIndex(); }
+    LogIndex lastApplied()  const { return log_.lastApplied(); }
 
 private:
     // ── Role transitions ──────────────────────────────────────────────────────
@@ -68,7 +77,8 @@ private:
     void maybeAdvanceCommit();
     bool checkQuorumHealthy();
     void broadcastAppendEntries();
-    void sendAppendEntries(NodeId to);
+    void sendAppendEntries(NodeId to, uint64_t readCtx = 0);
+    void ackReads(NodeId from, uint64_t ctx);
     void drainApplicable();
 
     // ── Message handlers ──────────────────────────────────────────────────────
@@ -108,6 +118,16 @@ private:
     std::set<NodeId>           heardFrom_;   // peers that replied this window
     std::map<NodeId, LogIndex> nextIndex_;
     std::map<NodeId, LogIndex> matchIndex_;
+
+    // ── ReadIndex ─────────────────────────────────────────────────────────────
+    struct PendingRead {
+        uint64_t         id;
+        LogIndex         index;
+        std::set<NodeId> acks;
+    };
+    uint64_t                 readSeq_{0};
+    std::vector<PendingRead> pendingReads_;
+    std::vector<ReadState>   readStates_;
 
     // ── Output queues ─────────────────────────────────────────────────────────
     std::vector<Message>  pending_;   // outbound messages (tick + step + propose)

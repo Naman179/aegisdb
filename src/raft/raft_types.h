@@ -52,6 +52,7 @@ struct AppendEntriesArgs {
     Term                  prevLogTerm{0};
     std::vector<LogEntry> entries;
     LogIndex              leaderCommit{0};
+    uint64_t              readCtx{0};  // ReadIndex round id; 0 = plain heartbeat/append
 };
 
 struct AppendEntriesReply {
@@ -61,6 +62,14 @@ struct AppendEntriesReply {
     NodeId   followerId{kNone};
     LogIndex conflictIndex{0};  // fast back-track: first index of conflicting term
     Term     conflictTerm{0};   // fast back-track: term at conflictIndex
+    uint64_t readCtx{0};        // echoes AppendEntriesArgs::readCtx
+};
+
+// A linearizable read that has been confirmed by a quorum: the caller may
+// serve it once the state machine has applied everything up to `index`.
+struct ReadState {
+    uint64_t id{0};
+    LogIndex index{0};
 };
 
 // ── Generic message wrapper ───────────────────────────────────────────────────
