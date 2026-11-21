@@ -37,9 +37,24 @@ add_library(aegisdb_shard STATIC
 )
 target_include_directories(aegisdb_shard PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# ── Milestone 8: Networking (framing) ─────────────────────────────────────────
+# ── Milestone 8: Networking (framing, TCP server, RPC client, transport) ────
 add_library(aegisdb_net STATIC
     net/frame_stream.cpp
+    net/faults.cpp
+    net/tcp_server.cpp
+    net/rpc_client.cpp
+    net/raft_codec.cpp
+    net/transport.cpp
 )
 target_include_directories(aegisdb_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(aegisdb_net PUBLIC aegisdb_common)
+target_link_libraries(aegisdb_net PUBLIC aegisdb_common aegisdb_raft)
+if(WIN32)
+    target_link_libraries(aegisdb_net PUBLIC ws2_32)
+endif()
+
+# ── Milestone 9: Server & Thread Pool ────────────────────────────────────────
+add_library(aegisdb_server STATIC
+    server/thread_pool.cpp
+)
+target_include_directories(aegisdb_server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(aegisdb_server PUBLIC aegisdb_common aegisdb_net aegisdb_shard aegisdb_kv aegisdb_wal)
