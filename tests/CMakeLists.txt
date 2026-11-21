@@ -17,6 +17,8 @@ add_executable(aegis_tests
     raft/chaos_test.cpp
     # Milestone 9 – consistent hashing
     shard/hash_ring_test.cpp
+    # Milestone 8 – networking
+    net/frame_stream_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
@@ -30,6 +32,7 @@ target_link_libraries(aegis_tests
     aegisdb_kv
     aegisdb_raft
     aegisdb_shard
+    aegisdb_net
     gtest_main
 )
 
