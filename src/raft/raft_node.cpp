@@ -73,6 +73,9 @@ void RaftNode::becomeCandidate() {
     LOG(LogLevel::INFO, "node %u starting election term %llu",
         id_, (unsigned long long)currentTerm_);
 
+    // A single-node cluster already holds a quorum with its own vote.
+    if (votesGranted_.size() >= quorum()) { becomeLeader(); return; }
+
     // Broadcast RequestVote to all peers.
     for (NodeId p : peers_) {
         pending_.push_back(Message{
@@ -127,7 +130,7 @@ void RaftNode::broadcastAppendEntries() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void RaftNode::maybeAdvanceCommit() {
-    size_t quorum = (peers_.size() + 1) / 2 + 1;
+    const size_t q = quorum();
 
     for (LogIndex n = log_.lastIndex(); n > log_.commitIndex(); --n) {
         // Only commit entries from the current term (Raft §5.4.2).
@@ -137,7 +140,7 @@ void RaftNode::maybeAdvanceCommit() {
         for (auto& [peer, mi] : matchIndex_)
             if (mi >= n) ++count;
 
-        if (count >= quorum) {
+        if (count >= q) {
             log_.setCommitIndex(n);
             drainApplicable();
             break;
@@ -228,8 +231,7 @@ void RaftNode::handleRequestVoteReply(const Message& msg,
     if (!rpl.voteGranted) return;
 
     votesGranted_.insert(msg.from);
-    size_t quorum = (peers_.size() + 1) / 2 + 1;
-    if (votesGranted_.size() >= quorum) becomeLeader();
+    if (votesGranted_.size() >= quorum()) becomeLeader();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

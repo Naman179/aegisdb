@@ -62,6 +62,7 @@ private:
     // ── Helpers ───────────────────────────────────────────────────────────────
     void resetElectionTimeout();
     bool isLogUpToDate(LogIndex lastIdx, Term lastTerm) const;
+    size_t quorum() const { return (peers_.size() + 1) / 2 + 1; }
     void maybeAdvanceCommit();
     void broadcastAppendEntries();
     void sendAppendEntries(NodeId to);
