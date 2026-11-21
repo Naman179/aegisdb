@@ -15,6 +15,7 @@
 
 #include <cassert>
 #include <map>
+#include <random>
 #include <set>
 #include <vector>
 
@@ -27,7 +28,9 @@ public:
     FakeNetwork(std::vector<NodeId> ids,
                 uint32_t electionMin = 150,
                 uint32_t electionMax = 300,
-                uint32_t heartbeat   = 50)
+                uint32_t heartbeat   = 50,
+                uint32_t seed        = 0)
+        : rng_(seed * 7919u + 13u)
     {
         for (NodeId id : ids) {
             std::vector<NodeId> peers;
@@ -36,7 +39,7 @@ public:
             nodes_.emplace(
                 std::piecewise_construct,
                 std::forward_as_tuple(id),
-                std::forward_as_tuple(id, peers, electionMin, electionMax, heartbeat, /*seed=*/0));
+                std::forward_as_tuple(id, peers, electionMin, electionMax, heartbeat, seed));
         }
     }
 
@@ -114,13 +117,26 @@ public:
     void heal(NodeId id)     { partitioned_.erase(id); }
     void healAll()            { partitioned_.clear(); }
 
+    // Randomly drop a fraction of all messages (seeded, so reproducible).
+    void setDropRate(double p) { dropRate_ = p; }
+    bool isIsolated(NodeId id) const { return partitioned_.count(id) != 0; }
+    std::vector<NodeId> ids() const {
+        std::vector<NodeId> v;
+        for (auto& [id, n] : nodes_) { (void)n; v.push_back(id); }
+        return v;
+    }
+
 private:
-    bool dropped(const Message& m) const {
-        return partitioned_.count(m.from) || partitioned_.count(m.to);
+    bool dropped(const Message& m) {
+        if (partitioned_.count(m.from) || partitioned_.count(m.to)) return true;
+        return dropRate_ > 0 &&
+               std::uniform_real_distribution<double>(0.0, 1.0)(rng_) < dropRate_;
     }
 
     std::map<NodeId, RaftNode> nodes_;
     std::set<NodeId>           partitioned_;
+    std::mt19937               rng_;
+    double                     dropRate_{0.0};
 };
 
 }  // namespace aegis
