@@ -131,6 +131,7 @@ void RaftNode::becomeLeader() {
     // entry (Raft §5.4.2 / "Figure 8") and lets the leader learn the true
     // commit index before serving reads.
     log_.append(currentTerm_, {}, /*noop=*/true);
+    maybeAdvanceCommit();  // single-node cluster: own copy is already a quorum
 
     LOG(LogLevel::INFO, "node %u became LEADER term %llu",
         id_, (unsigned long long)currentTerm_);
@@ -410,6 +411,7 @@ void RaftNode::handleAppendEntriesReply(const Message& msg,
 bool RaftNode::propose(std::vector<uint8_t> data) {
     if (!isLeader()) return false;
     log_.append(currentTerm_, std::move(data));
+    maybeAdvanceCommit();  // single-node cluster commits without any replies
     pending_.clear();
     broadcastAppendEntries();
     return true;
