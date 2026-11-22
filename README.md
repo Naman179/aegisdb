@@ -3,7 +3,7 @@
 [![CI](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml/badge.svg)](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus)
 ![Build](https://img.shields.io/badge/build-CMake-064F8C?logo=cmake)
-![Testing](https://img.shields.io/badge/tests-130%20passed%20(75%20fault%20injections)-brightgreen)
+![Testing](https://img.shields.io/badge/tests-132%20passed%20(77%20fault%20injections)-brightgreen)
 ![Sanitizers](https://img.shields.io/badge/sanitizers-ASAN%20%7C%20TSAN-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -169,7 +169,7 @@ docker compose down -v
 
 ---
 
-## Complete Test Inventory (130 tests, 75 fault injections)
+## Complete Test Inventory (132 tests, 77 fault injections)
 
 | Test Suite | Total Cases | Fault Cases | Test Cases |
 |---|:---:|:---:|---|
@@ -178,12 +178,13 @@ docker compose down -v
 | **KvStoreTest** | 9 | 0 | `PutAndGet`, `DeleteRemovesKey`, `VersionIncrementsOnPut`, `DuplicateSessionReturnsCachedResult`, `CommandEncodeDecodeRoundtrip`, `SnapshotRestoreRoundtrip`, `CasZeroMeansAbsent`, `CasSucceedsOnMatch`, `CasFailsOnMismatch` |
 | **HashRingTest** | 5 | 0 | `GroupForIsDeterministic`, `KeysSpreadEvenly`, `AddGroupMovesAboutOneOverN`, `RemoveGroupOnlyMovesItsKeys`, `WrapAround` |
 | **NetTest** | 9 | 1 | `StreamYieldsFrameFedWhole`, `PartialRecvReassembles`, `MultipleFramesInOneBufferKeepOrder`, `RandomChunkBoundariesReassemble`, `EmptyPayloadFrame`, `FrameRoundTrip`, `RpcRequestIdMatching`, **`ReconnectAfterPeerRestart`**, `StreamErrorOnInvalidLength` |
+| **FaultAdminTest** | 2 | 2 | **`EncodeDecodeRoundtrip`**, **`ServerAdminFaultLiveControl`** (dynamic peer partition block/unblock, packet drop rate, and artificial latency injection) |
 | **RaftTest (FakeNetwork)** | 18 | 14 | `InitialElection`, `OneLeaderPerTerm`, `BasicAgreement`, `ReadIndexRejectsOnFollower`, **`ReElectAfterLeaderCrash`**, **`ReElectAfterLeaderPartitioned`**, **`FailoverUnder500ms`**, **`PreVoteBlocksDisruptiveRejoin`**, **`CheckQuorumStepDown`**, **`AgreementWithTwoFollowersDown`**, **`NoCommitWithoutQuorum`**, **`FollowerRejoinCatchesUp`**, **`FastBacktrackingConflictTerm`**, **`FigureEightOldTermNotCommitted`**, **`LaggingFollowerGetsSnapshot`**, **`CrashAndRecoverAll`**, **`IsolatedLeaderStopsServingReads`**, **`UnreliableNetworkAgreement`** |
 | **RaftHardening** | 42 | 22 | PreVote split-vote resilience, CheckQuorum partitioned leader step-down, no-op entry commits, conflictTerm fast log backtracking, chunked InstallSnapshot transfer |
 | **ChaosTest** | 23 | 23 | Parameterized over **23 random seeds**: random crashes, restarts, 2&#124;3 partitions, 10% packet drops &amp; reordering with snapshots enabled; verifies every acked write is applied exactly once and all logs converge byte-identically |
 | **ClusterFaultTest** | 7 | 7 | **`KillMinus9LeaderNoAckedLoss`**, **`KillTwoNodesStillServes`**, **`KillThreeNodesUnavailableThenRecovers`**, **`Partition2v3MinorityRefusesWrites`**, **`FullClusterRestartDurability`**, **`RetriesAreIdempotentUnderDrops`**, **`RebalanceUnderLoadLosesNothing`** |
 | **ClientSdkTest** | 2 | 1 | `EndToEndCrudAndRouting`, **`TransparentLeaderRedirect`** (automatic failover &amp; redirect tracking) |
-| **Total** | **130** | **75** | **100% passed across all 3 configurations: Debug, AddressSanitizer (ASAN), and ThreadSanitizer (TSAN)** |
+| **Total** | **132** | **77** | **100% passed across all 3 configurations: Debug, AddressSanitizer (ASAN), and ThreadSanitizer (TSAN)** |
 
 ---
 
