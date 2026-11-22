@@ -2,6 +2,7 @@
 #include "common/logger.h"
 
 #include <chrono>
+#include <filesystem>
 
 namespace aegis {
 
@@ -41,6 +42,27 @@ void Server::initGroups() {
         auto replica = std::make_unique<RaftGroupReplica>();
         replica->groupId = g;
         replica->kv = std::make_unique<KvStore>();
+
+        if (!opts_.dataDir.empty()) {
+            std::string groupDir = opts_.dataDir + "/node_" + std::to_string(opts_.nodeId) + "/g" + std::to_string(g);
+            std::error_code ec;
+            std::filesystem::create_directories(groupDir, ec);
+
+            auto reader = WalReader::open(groupDir);
+            if (reader) {
+                WalRecord rec;
+                while (reader->next(&rec)) {
+                    if (rec.type == WalRecordType::kData) {
+                        KvCommand cmd;
+                        if (KvCommand::decode(rec.data.data(), rec.data.size(), cmd)) {
+                            replica->kv->apply(cmd);
+                        }
+                    }
+                }
+            }
+
+            replica->wal = WalWriter::open(groupDir);
+        }
 
         // Preferred leader bias: group g prefers node g + 1
         uint32_t minElection = 150;
@@ -215,6 +237,10 @@ void Server::applyLoop() {
                 KvResult res;
                 if (KvCommand::decode(entry.data.data(), entry.data.size(), cmd)) {
                     res = rep->kv->apply(cmd);
+                    if (rep->wal) {
+                        rep->wal->append(WalRecordType::kData, entry.data.data(), entry.data.size());
+                        rep->wal->sync();
+                    }
                 }
 
                 std::lock_guard<std::mutex> lk(rep->mu);

@@ -3,6 +3,7 @@
 #include "server/client_protocol.h"
 
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -13,9 +14,19 @@ namespace {
 
 class ClusterFixture {
 public:
+    ClusterFixture() = default;
+    ~ClusterFixture() {
+        teardown();
+        if (!dataDir_.empty()) {
+            std::error_code ec;
+            std::filesystem::remove_all(dataDir_, ec);
+        }
+    }
+
     void setup(int baseClientPort = 17000, int basePeerPort = 18000) {
         baseClient_ = baseClientPort;
         basePeer_ = basePeerPort;
+        dataDir_ = "./data_cluster_" + std::to_string(baseClientPort);
         nodes_.resize(6); // 1-indexed
 
         std::vector<NodePeerInfo> peers;
@@ -30,6 +41,7 @@ public:
             opts.nodeId = id;
             opts.clientPort = baseClient_ + static_cast<int>(id);
             opts.peerPort = basePeer_ + static_cast<int>(id);
+            opts.dataDir = dataDir_;
             opts.peers = peers;
             opts.numGroups = 3;
             opts.vnodesPerGroup = 128;
@@ -70,6 +82,7 @@ public:
         opts.nodeId = id;
         opts.clientPort = baseClient_ + static_cast<int>(id);
         opts.peerPort = basePeer_ + static_cast<int>(id);
+        opts.dataDir = dataDir_;
         opts.peers = peers;
         opts.numGroups = 3;
         opts.workerThreads = 4;
@@ -197,6 +210,7 @@ public:
 private:
     int baseClient_{17000};
     int basePeer_{18000};
+    std::string dataDir_;
     std::vector<std::unique_ptr<Server>> nodes_;
 };
 

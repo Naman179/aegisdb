@@ -52,6 +52,7 @@ struct RaftGroupReplica {
     int                           groupId{0};
     std::unique_ptr<RaftNode>     raft;
     std::unique_ptr<KvStore>      kv;
+    std::unique_ptr<WalWriter>    wal;
     std::mutex                    mu;
     std::unordered_map<LogIndex, std::promise<KvResult>> waiters;
 };
