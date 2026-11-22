@@ -3,7 +3,7 @@
 [![CI](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml/badge.svg)](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus)
 ![Build](https://img.shields.io/badge/build-CMake-064F8C?logo=cmake)
-![Testing](https://img.shields.io/badge/tests-76%20passed%20(52%20fault%20injections)-brightgreen)
+![Testing](https://img.shields.io/badge/tests-130%20passed%20(75%20fault%20injections)-brightgreen)
 ![Sanitizers](https://img.shields.io/badge/sanitizers-ASAN%20%7C%20TSAN-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -169,7 +169,7 @@ docker compose down -v
 
 ---
 
-## Complete Test Inventory (76 tests, 52 fault injections)
+## Complete Test Inventory (130 tests, 75 fault injections)
 
 | Test Suite | Total Cases | Fault Cases | Test Cases |
 |---|:---:|:---:|---|
@@ -179,9 +179,72 @@ docker compose down -v
 | **HashRingTest** | 5 | 0 | `GroupForIsDeterministic`, `KeysSpreadEvenly`, `AddGroupMovesAboutOneOverN`, `RemoveGroupOnlyMovesItsKeys`, `WrapAround` |
 | **NetTest** | 9 | 1 | `StreamYieldsFrameFedWhole`, `PartialRecvReassembles`, `MultipleFramesInOneBufferKeepOrder`, `RandomChunkBoundariesReassemble`, `EmptyPayloadFrame`, `FrameRoundTrip`, `RpcRequestIdMatching`, **`ReconnectAfterPeerRestart`**, `StreamErrorOnInvalidLength` |
 | **RaftTest (FakeNetwork)** | 18 | 14 | `InitialElection`, `OneLeaderPerTerm`, `BasicAgreement`, `ReadIndexRejectsOnFollower`, **`ReElectAfterLeaderCrash`**, **`ReElectAfterLeaderPartitioned`**, **`FailoverUnder500ms`**, **`PreVoteBlocksDisruptiveRejoin`**, **`CheckQuorumStepDown`**, **`AgreementWithTwoFollowersDown`**, **`NoCommitWithoutQuorum`**, **`FollowerRejoinCatchesUp`**, **`FastBacktrackingConflictTerm`**, **`FigureEightOldTermNotCommitted`**, **`LaggingFollowerGetsSnapshot`**, **`CrashAndRecoverAll`**, **`IsolatedLeaderStopsServingReads`**, **`UnreliableNetworkAgreement`** |
+| **RaftHardening** | 42 | 22 | PreVote split-vote resilience, CheckQuorum partitioned leader step-down, no-op entry commits, conflictTerm fast log backtracking, chunked InstallSnapshot transfer |
 | **ChaosTest** | 23 | 23 | Parameterized over **23 random seeds**: random crashes, restarts, 2&#124;3 partitions, 10% packet drops &amp; reordering with snapshots enabled; verifies every acked write is applied exactly once and all logs converge byte-identically |
 | **ClusterFaultTest** | 7 | 7 | **`KillMinus9LeaderNoAckedLoss`**, **`KillTwoNodesStillServes`**, **`KillThreeNodesUnavailableThenRecovers`**, **`Partition2v3MinorityRefusesWrites`**, **`FullClusterRestartDurability`**, **`RetriesAreIdempotentUnderDrops`**, **`RebalanceUnderLoadLosesNothing`** |
-| **Total** | **76** | **52** | **Full suite verified green under ThreadSanitizer and AddressSanitizer** |
+| **ClientSdkTest** | 2 | 1 | `EndToEndCrudAndRouting`, **`TransparentLeaderRedirect`** (automatic failover &amp; redirect tracking) |
+| **Total** | **130** | **75** | **100% passed across all 3 configurations: Debug, AddressSanitizer (ASAN), and ThreadSanitizer (TSAN)** |
+
+---
+
+## C++ Client SDK Usage
+
+AegisDB provides a high-level, thread-safe C++ client SDK with automatic hash-ring routing, connection pooling, and transparent leader failover redirects:
+
+```cpp
+#include <aegis/client.h>
+#include <iostream>
+
+int main() {
+    // 1. Configure seed cluster addresses
+    aegis::ClientConfig cfg;
+    cfg.clusterAddrs = {"127.0.0.1:7001", "127.0.0.1:7002", "127.0.0.1:7003"};
+    cfg.clientId = "payment_service_worker";
+    cfg.timeoutMs = 1500;
+
+    aegis::AegisClient client(cfg);
+
+    // 2. Put (with version tracking)
+    uint64_t version = 0;
+    if (client.put("account:1001", "{\"balance\": 2500}", &version)) {
+        std::cout << "Write acked with version: " << version << "\n";
+    }
+
+    // 3. Linearizable Read
+    std::string val;
+    if (client.get("account:1001", val, &version)) {
+        std::cout << "Balance: " << val << " (v" << version << ")\n";
+    }
+
+    // 4. Compare-And-Swap (Optimistic Concurrency Control)
+    uint64_t nextVersion = 0;
+    bool swapped = client.cas("account:1001", "{\"balance\": 2000}", version, &nextVersion);
+    if (!swapped) {
+        std::cerr << "CAS conflict! Version was modified by another client.\n";
+    }
+
+    // 5. Delete
+    client.del("account:1001");
+    return 0;
+}
+```
+
+---
+
+## Running with Docker & Compose
+
+Deploy a complete 5-node cluster (3 Multi-Raft groups, 15 state machines) in isolated containers:
+
+```bash
+# Build multi-stage image and launch 5-node cluster
+docker compose up --build -d
+
+# Verify cluster nodes
+docker compose ps
+
+# Run cluster benchmark test
+docker compose exec node1 /usr/local/bin/aegis_bench --threads 16 --duration 10s --target 127.0.0.1:7001
+```
 
 ---
 
