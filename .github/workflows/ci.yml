@@ -78,3 +78,20 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build_tsan --output-on-failure
+
+  # ─── Docker Build & Verification ──────────────────────────────────────────
+  docker-build:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t aegisdb:latest .
+
+      - name: Run Failover Benchmark Verification
+        run: python3 scripts/benchmark_failover.py 20
+
+      - name: Run Recovery Benchmark Verification
+        run: python3 scripts/benchmark_recovery.py
