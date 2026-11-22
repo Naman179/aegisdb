@@ -46,3 +46,10 @@ private:
 // keeping -Wpedantic clean.
 #define LOG(level, ...) \
     ::aegis::Logger::instance().log((level), __FILE__, __LINE__, __VA_ARGS__)
+
+#define LOG_TRACE(...) LOG(::aegis::LogLevel::TRACE, __VA_ARGS__)
+#define LOG_DEBUG(...) LOG(::aegis::LogLevel::DEBUG, __VA_ARGS__)
+#define LOG_INFO(...)  LOG(::aegis::LogLevel::INFO,  __VA_ARGS__)
+#define LOG_WARN(...)  LOG(::aegis::LogLevel::WARN,  __VA_ARGS__)
+#define LOG_ERROR(...) LOG(::aegis::LogLevel::ERROR, __VA_ARGS__)
+#define LOG_FATAL(...) LOG(::aegis::LogLevel::FATAL, __VA_ARGS__)

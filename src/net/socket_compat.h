@@ -95,7 +95,7 @@ inline int recvWithTimeout(socket_handle_t fd, uint8_t* buf, size_t maxLen, int 
     pfd.events = POLLIN;
     int res = ::poll(&pfd, 1, timeoutMs);
     if (res <= 0) return res; // 0 = timeout, <0 = error
-    return ::recv(fd, buf, maxLen, 0);
+    return static_cast<int>(::recv(fd, buf, maxLen, 0));
 #endif
 }
 

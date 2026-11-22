@@ -63,7 +63,8 @@ TEST(NetTest, PartialRecvReassembles) {
 
     // Feed byte-at-a-time with small sleep
     for (size_t i = 0; i < encoded.size(); ++i) {
-        ::send(fd, reinterpret_cast<const char*>(&encoded[i]), 1, 0);
+        int sentBytes = static_cast<int>(::send(fd, reinterpret_cast<const char*>(&encoded[i]), 1, 0));
+        ASSERT_EQ(sentBytes, 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 

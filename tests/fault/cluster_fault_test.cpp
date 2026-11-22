@@ -302,7 +302,7 @@ TEST(ClusterFaultTest, Partition2v3MinorityRefusesWrites) {
         std::vector<uint8_t> p;
         encodeKvPutReq(req, p);
         Frame resp;
-        clientMaj.callSync(kMsgKvPutReq, p, resp, 1500);
+        (void)clientMaj.callSync(kMsgKvPutReq, p, resp, 1500);
     }
 
     // Heal partition

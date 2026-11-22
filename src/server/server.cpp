@@ -77,7 +77,7 @@ bool Server::start() {
         });
     }, "0.0.0.0");
     if (!pStarted) {
-        LOG_ERROR("Server %u: failed to start peer server on port %d", opts_.nodeId, opts_.peerPort);
+        LOG_ERROR("Server %u: failed to start peer server on port %d", static_cast<unsigned>(opts_.nodeId), opts_.peerPort);
         stop();
         return false;
     }
@@ -89,7 +89,7 @@ bool Server::start() {
         });
     }, "0.0.0.0");
     if (!cStarted) {
-        LOG_ERROR("Server %u: failed to start client server on port %d", opts_.nodeId, opts_.clientPort);
+        LOG_ERROR("Server %u: failed to start client server on port %d", static_cast<unsigned>(opts_.nodeId), opts_.clientPort);
         stop();
         return false;
     }
@@ -98,7 +98,7 @@ bool Server::start() {
     applyThread_ = std::thread(&Server::applyLoop, this);
 
     LOG_INFO("Server %u started (clientPort=%d, peerPort=%d, groups=%d)",
-             opts_.nodeId, clientServer_.port(), peerServer_.port(), opts_.numGroups);
+             static_cast<unsigned>(opts_.nodeId), clientServer_.port(), peerServer_.port(), opts_.numGroups);
     return true;
 }
 
