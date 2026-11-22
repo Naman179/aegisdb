@@ -48,7 +48,7 @@ private:
 
     std::string                      host_;
     int                              port_;
-    socket_handle_t                  fd_{AEGIS_INVALID_SOCKET};
+    std::atomic<socket_handle_t>     fd_{AEGIS_INVALID_SOCKET};
     std::atomic<bool>                connected_{false};
     std::atomic<bool>                running_{false};
     std::atomic<uint64_t>            nextReqId_{1};

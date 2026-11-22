@@ -252,10 +252,19 @@ void Server::applyLoop() {
             }
 
             // Check snapshot compaction threshold
-            if (rep->raft->lastApplied() - rep->raft->snapshotIndex() >= opts_.snapshotThreshold) {
+            bool needCompact = false;
+            LogIndex applyIdx = 0;
+            {
+                std::lock_guard<std::mutex> lk(rep->mu);
+                if (rep->raft->lastApplied() - rep->raft->snapshotIndex() >= opts_.snapshotThreshold) {
+                    needCompact = true;
+                    applyIdx = rep->raft->lastApplied();
+                }
+            }
+            if (needCompact) {
                 auto snapBytes = rep->kv->snapshot();
                 std::lock_guard<std::mutex> lk(rep->mu);
-                rep->raft->compact(rep->raft->lastApplied(), snapBytes);
+                rep->raft->compact(applyIdx, snapBytes);
             }
         }
     }

@@ -7,8 +7,8 @@ namespace aegis {
 
 TcpConnection::TcpConnection(socket_handle_t fd, std::string remoteAddr)
     : fd_(fd), remoteAddr_(std::move(remoteAddr)) {
-    if (fd_ != AEGIS_INVALID_SOCKET) {
-        net_util::setTcpNoDelay(fd_);
+    if (fd != AEGIS_INVALID_SOCKET) {
+        net_util::setTcpNoDelay(fd);
     }
 }
 
@@ -18,10 +18,10 @@ TcpConnection::~TcpConnection() {
 
 void TcpConnection::close() {
     if (open_.exchange(false)) {
-        if (fd_ != AEGIS_INVALID_SOCKET) {
-            ::shutdown(fd_, AEGIS_SHUT_RDWR);
-            AEGIS_CLOSE_SOCKET(fd_);
-            fd_ = AEGIS_INVALID_SOCKET;
+        socket_handle_t s = fd_.exchange(AEGIS_INVALID_SOCKET);
+        if (s != AEGIS_INVALID_SOCKET) {
+            ::shutdown(s, AEGIS_SHUT_RDWR);
+            AEGIS_CLOSE_SOCKET(s);
         }
     }
 }
@@ -31,13 +31,17 @@ bool TcpConnection::send(const Frame& frame) {
 }
 
 bool TcpConnection::send(uint8_t msgType, uint64_t requestId, const uint8_t* payload, size_t payloadLen) {
-    if (!open_ || fd_ == AEGIS_INVALID_SOCKET) return false;
+    if (!open_) return false;
+    socket_handle_t s = fd_.load();
+    if (s == AEGIS_INVALID_SOCKET) return false;
+
     std::vector<uint8_t> encoded;
     encodeFrame(msgType, requestId, payload, payloadLen, encoded);
 
     std::lock_guard<std::mutex> lk(sendMu_);
-    if (!open_ || fd_ == AEGIS_INVALID_SOCKET) return false;
-    return net_util::sendExact(fd_, encoded.data(), encoded.size());
+    s = fd_.load();
+    if (!open_ || s == AEGIS_INVALID_SOCKET) return false;
+    return net_util::sendExact(s, encoded.data(), encoded.size());
 }
 
 TcpServer::TcpServer() = default;
@@ -99,10 +103,10 @@ bool TcpServer::start(int port, FrameHandler handler, const std::string& bindHos
 void TcpServer::stop() {
     if (!running_.exchange(false)) return;
 
-    if (listenFd_ != AEGIS_INVALID_SOCKET) {
-        ::shutdown(listenFd_, AEGIS_SHUT_RDWR);
-        AEGIS_CLOSE_SOCKET(listenFd_);
-        listenFd_ = AEGIS_INVALID_SOCKET;
+    socket_handle_t fd = listenFd_.exchange(AEGIS_INVALID_SOCKET);
+    if (fd != AEGIS_INVALID_SOCKET) {
+        ::shutdown(fd, AEGIS_SHUT_RDWR);
+        AEGIS_CLOSE_SOCKET(fd);
     }
 
     if (acceptThread_.joinable()) {
@@ -131,9 +135,12 @@ void TcpServer::stop() {
 
 void TcpServer::acceptLoop() {
     while (running_) {
+        socket_handle_t lfd = listenFd_.load();
+        if (lfd == AEGIS_INVALID_SOCKET) break;
+
         sockaddr_in clientAddr{};
         socklen_t clientLen = sizeof(clientAddr);
-        socket_handle_t clientFd = ::accept(listenFd_, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+        socket_handle_t clientFd = ::accept(lfd, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
 
         if (clientFd == AEGIS_INVALID_SOCKET) {
             if (!running_) break;

@@ -64,8 +64,9 @@ std::future<Frame> RpcClient::call(uint8_t msgType, const std::vector<uint8_t>& 
     bool ok = false;
     {
         std::lock_guard<std::mutex> lk(sendMu_);
-        if (connected_ && fd_ != AEGIS_INVALID_SOCKET) {
-            ok = net_util::sendExact(fd_, encoded.data(), encoded.size());
+        socket_handle_t s = fd_.load();
+        if (connected_ && s != AEGIS_INVALID_SOCKET) {
+            ok = net_util::sendExact(s, encoded.data(), encoded.size());
         }
     }
 
@@ -98,10 +99,10 @@ void RpcClient::close() {
     running_ = false;
     connected_ = false;
 
-    if (fd_ != AEGIS_INVALID_SOCKET) {
-        ::shutdown(fd_, AEGIS_SHUT_RDWR);
-        AEGIS_CLOSE_SOCKET(fd_);
-        fd_ = AEGIS_INVALID_SOCKET;
+    socket_handle_t s = fd_.exchange(AEGIS_INVALID_SOCKET);
+    if (s != AEGIS_INVALID_SOCKET) {
+        ::shutdown(s, AEGIS_SHUT_RDWR);
+        AEGIS_CLOSE_SOCKET(s);
     }
 
     if (readerThread_.joinable()) {
@@ -126,7 +127,9 @@ void RpcClient::readerLoop() {
     std::vector<uint8_t> buffer(64 * 1024);
 
     while (running_ && connected_) {
-        int n = net_util::recvWithTimeout(fd_, buffer.data(), buffer.size(), 200);
+        socket_handle_t s = fd_.load();
+        if (s == AEGIS_INVALID_SOCKET) break;
+        int n = net_util::recvWithTimeout(s, buffer.data(), buffer.size(), 200);
         if (n == 0) {
             // Closed by peer
             break;

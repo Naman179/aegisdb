@@ -34,14 +34,14 @@ public:
 
     void close();
     bool isOpen() const { return open_; }
-    socket_handle_t fd() const { return fd_; }
+    socket_handle_t fd() const { return fd_.load(); }
     const std::string& remoteAddr() const { return remoteAddr_; }
 
 private:
-    socket_handle_t   fd_{AEGIS_INVALID_SOCKET};
-    std::string       remoteAddr_;
-    std::mutex        sendMu_;
-    std::atomic<bool> open_{true};
+    std::atomic<socket_handle_t> fd_{AEGIS_INVALID_SOCKET};
+    std::string                  remoteAddr_;
+    std::mutex                   sendMu_;
+    std::atomic<bool>            open_{true};
 };
 
 using FrameHandler = std::function<void(std::shared_ptr<TcpConnection>, Frame)>;
@@ -66,7 +66,7 @@ private:
     void acceptLoop();
     void clientLoop(std::shared_ptr<TcpConnection> conn);
 
-    socket_handle_t                listenFd_{AEGIS_INVALID_SOCKET};
+    std::atomic<socket_handle_t>   listenFd_{AEGIS_INVALID_SOCKET};
     int                            boundPort_{0};
     FrameHandler                   handler_;
     std::atomic<bool>              running_{false};

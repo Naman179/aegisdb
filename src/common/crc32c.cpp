@@ -23,11 +23,14 @@
 #  include <nmmintrin.h>   // _mm_crc32_u8/u32/u64
 #endif
 
+#include <mutex>
+
 namespace aegis {
 
 // ─── Software table (Castagnoli polynomial, reflected 0x82F63B78) ────────────
 
 static uint32_t s_table[256];
+static std::once_flag s_tableFlag;
 
 static void buildTable() noexcept {
     for (uint32_t i = 0; i < 256u; ++i) {
@@ -39,13 +42,9 @@ static void buildTable() noexcept {
     }
 }
 
-// Called once; trivially race-safe because writing the same values every time.
+// Thread-safe one-time table initialization
 static void ensureTable() noexcept {
-    static bool ready = false;
-    if (!ready) {
-        buildTable();
-        ready = true;
-    }
+    std::call_once(s_tableFlag, buildTable);
 }
 
 static uint32_t crc32c_sw(const uint8_t* data, size_t len, uint32_t state) noexcept {
