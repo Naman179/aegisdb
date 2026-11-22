@@ -22,10 +22,13 @@ add_executable(aegis_tests
     net/net_test.cpp
     # Milestone 10 – Process & Cluster Fault Tests
     fault/cluster_fault_test.cpp
+    # Client SDK Tests
+    client/client_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_link_libraries(aegis_tests
