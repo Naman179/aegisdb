@@ -32,6 +32,7 @@ public:
     bool send(const Frame& frame);
     bool send(uint8_t msgType, uint64_t requestId, const uint8_t* payload, size_t payloadLen);
 
+    void shutdown();
     void close();
     bool isOpen() const { return open_; }
     socket_handle_t fd() const { return fd_.load(); }

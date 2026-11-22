@@ -16,13 +16,20 @@ TcpConnection::~TcpConnection() {
     close();
 }
 
+void TcpConnection::shutdown() {
+    open_.store(false);
+    socket_handle_t s = fd_.load();
+    if (s != AEGIS_INVALID_SOCKET) {
+        ::shutdown(s, AEGIS_SHUT_RDWR);
+    }
+}
+
 void TcpConnection::close() {
-    if (open_.exchange(false)) {
-        socket_handle_t s = fd_.exchange(AEGIS_INVALID_SOCKET);
-        if (s != AEGIS_INVALID_SOCKET) {
-            ::shutdown(s, AEGIS_SHUT_RDWR);
-            AEGIS_CLOSE_SOCKET(s);
-        }
+    shutdown();
+    std::lock_guard<std::mutex> lk(sendMu_);
+    socket_handle_t s = fd_.exchange(AEGIS_INVALID_SOCKET);
+    if (s != AEGIS_INVALID_SOCKET) {
+        AEGIS_CLOSE_SOCKET(s);
     }
 }
 
@@ -113,13 +120,15 @@ void TcpServer::stop() {
         acceptThread_.join();
     }
 
+    // Unblock all client recv/send threads first
     {
         std::lock_guard<std::mutex> lk(connsMu_);
         for (auto& conn : connections_) {
-            conn->close();
+            conn->shutdown();
         }
     }
 
+    // Wait for all client threads to finish before closing fds
     for (auto& t : clientThreads_) {
         if (t.joinable()) {
             t.join();
@@ -127,8 +136,12 @@ void TcpServer::stop() {
     }
     clientThreads_.clear();
 
+    // Now all client threads are joined; close all connection sockets safely
     {
         std::lock_guard<std::mutex> lk(connsMu_);
+        for (auto& conn : connections_) {
+            conn->close();
+        }
         connections_.clear();
     }
 }

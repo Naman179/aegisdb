@@ -99,14 +99,18 @@ void RpcClient::close() {
     running_ = false;
     connected_ = false;
 
-    socket_handle_t s = fd_.exchange(AEGIS_INVALID_SOCKET);
+    socket_handle_t s = fd_.load();
     if (s != AEGIS_INVALID_SOCKET) {
         ::shutdown(s, AEGIS_SHUT_RDWR);
-        AEGIS_CLOSE_SOCKET(s);
     }
 
     if (readerThread_.joinable()) {
         readerThread_.join();
+    }
+
+    s = fd_.exchange(AEGIS_INVALID_SOCKET);
+    if (s != AEGIS_INVALID_SOCKET) {
+        AEGIS_CLOSE_SOCKET(s);
     }
 
     failAllPending();
