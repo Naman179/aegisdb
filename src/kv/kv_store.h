@@ -18,6 +18,7 @@
 // • No external dependencies beyond aegisdb_common.
 // ─────────────────────────────────────────────────────────────────────────────
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <optional>
@@ -75,7 +76,8 @@ public:
     // Raw accessors (for tests / snapshots).
     std::optional<std::string> get(const std::string& key) const;
     uint64_t                   version(const std::string& key) const;
-    size_t                     size() const { return store_.size(); }
+    KvResult                   getRecord(const std::string& key) const;
+    size_t                     size() const;
 
     // Snapshot / restore (full serialisation of the KV state).
     std::vector<uint8_t> snapshot() const;
@@ -93,6 +95,7 @@ private:
         KvResult  result;
     };
 
+    mutable std::mutex                         mu_;
     std::unordered_map<std::string, Entry>     store_;
     std::unordered_map<uint64_t, SessionCache> sessions_;
 };

@@ -51,6 +51,8 @@ bool KvCommand::decode(const uint8_t* data, size_t len, KvCommand& out) {
 // KvStore::apply
 // ─────────────────────────────────────────────────────────────────────────────
 KvResult KvStore::apply(const KvCommand& cmd) {
+    std::lock_guard<std::mutex> lk(mu_);
+
     // Duplicate detection: return cached result if we've seen this (session, seqNo).
     if (cmd.sessionId != 0) {
         auto sit = sessions_.find(cmd.sessionId);
@@ -125,14 +127,30 @@ KvResult KvStore::apply(const KvCommand& cmd) {
 // Raw accessors
 // ─────────────────────────────────────────────────────────────────────────────
 std::optional<std::string> KvStore::get(const std::string& key) const {
+    std::lock_guard<std::mutex> lk(mu_);
     auto it = store_.find(key);
     if (it == store_.end()) return std::nullopt;
     return it->second.value;
 }
 
 uint64_t KvStore::version(const std::string& key) const {
+    std::lock_guard<std::mutex> lk(mu_);
     auto it = store_.find(key);
     return (it == store_.end()) ? 0u : it->second.version;
+}
+
+KvResult KvStore::getRecord(const std::string& key) const {
+    std::lock_guard<std::mutex> lk(mu_);
+    auto it = store_.find(key);
+    if (it == store_.end()) {
+        return KvResult{false, "", 0};
+    }
+    return KvResult{true, it->second.value, it->second.version};
+}
+
+size_t KvStore::size() const {
+    std::lock_guard<std::mutex> lk(mu_);
+    return store_.size();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,6 +171,7 @@ uint64_t KvStore::version(const std::string& key) const {
 //     result.version u64
 
 std::vector<uint8_t> KvStore::snapshot() const {
+    std::lock_guard<std::mutex> lk(mu_);
     ByteWriter bw;
     bw.putU32(static_cast<uint32_t>(store_.size()));
     for (auto& [k, e] : store_) {
@@ -202,6 +221,7 @@ bool KvStore::restore(const uint8_t* data, size_t len) {
         newSessions[sid] = {seqNo, {okByte != 0, val, ver}};
     }
 
+    std::lock_guard<std::mutex> lk(mu_);
     store_    = std::move(newStore);
     sessions_ = std::move(newSessions);
     return true;

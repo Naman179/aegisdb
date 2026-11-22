@@ -319,11 +319,7 @@ KvResult Server::read(int groupId, const std::string& key, bool stale, uint32_t 
     auto& rep = groups_[groupId];
 
     if (stale) {
-        auto val = rep->kv->get(key);
-        if (val.has_value()) {
-            return KvResult{true, *val, rep->kv->version(key)};
-        }
-        return KvResult{false, "", 0};
+        return rep->kv->getRecord(key);
     }
 
     // Linearizable ReadIndex
@@ -360,11 +356,7 @@ KvResult Server::read(int groupId, const std::string& key, bool stale, uint32_t 
                 }
             }
             if (confirmed && rep->raft->lastApplied() >= readIndex) {
-                auto val = rep->kv->get(key);
-                if (val.has_value()) {
-                    return KvResult{true, *val, rep->kv->version(key)};
-                }
-                return KvResult{false, "", 0};
+                return rep->kv->getRecord(key);
             }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
