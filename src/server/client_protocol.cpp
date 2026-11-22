@@ -201,4 +201,42 @@ bool decodeClusterStatusResp(const uint8_t* data, size_t len, ClusterStatusResp&
     return true;
 }
 
+void encodeAdminFaultReq(const AdminFaultReq& req, std::vector<uint8_t>& out) {
+    ByteWriter w;
+    w.putString(req.action);
+    w.putString(req.peer);
+    uint64_t dropBits = 0;
+    std::memcpy(&dropBits, &req.dropRate, sizeof(double));
+    w.putU64(dropBits);
+    w.putU32(req.delayMs);
+    out = w.take();
+}
+
+bool decodeAdminFaultReq(const uint8_t* data, size_t len, AdminFaultReq& out) {
+    ByteReader r(data, len);
+    uint64_t dropBits = 0;
+    if (!r.getString(out.action)) return false;
+    if (!r.getString(out.peer)) return false;
+    if (!r.getU64(dropBits)) return false;
+    std::memcpy(&out.dropRate, &dropBits, sizeof(double));
+    if (!r.getU32(out.delayMs)) return false;
+    return true;
+}
+
+void encodeAdminFaultResp(const AdminFaultResp& resp, std::vector<uint8_t>& out) {
+    ByteWriter w;
+    w.putU8(resp.ok ? 1 : 0);
+    w.putString(resp.message);
+    out = w.take();
+}
+
+bool decodeAdminFaultResp(const uint8_t* data, size_t len, AdminFaultResp& out) {
+    ByteReader r(data, len);
+    uint8_t okByte = 0;
+    if (!r.getU8(okByte)) return false;
+    out.ok = (okByte != 0);
+    if (!r.getString(out.message)) return false;
+    return true;
+}
+
 }  // namespace aegis

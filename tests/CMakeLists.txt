@@ -20,6 +20,7 @@ add_executable(aegis_tests
     # Milestone 8 – networking
     net/frame_stream_test.cpp
     net/net_test.cpp
+    net/fault_admin_test.cpp
     # Milestone 10 – Process & Cluster Fault Tests
     fault/cluster_fault_test.cpp
     # Client SDK Tests

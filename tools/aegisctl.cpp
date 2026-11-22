@@ -37,7 +37,8 @@ static void printUsage() {
               << "  get <key>                       Retrieve value by key\n"
               << "  del <key>                       Delete key\n"
               << "  cas <key> <expVersion> <value>  Compare-and-swap\n"
-              << "  status                          Display cluster status\n";
+              << "  status                          Display cluster status\n"
+              << "  faults <action> [args...]       Inject network faults (block, unblock, clear, drop, delay)\n";
 }
 
 static bool parseHostPort(const std::string& addr, std::string& host, int& port) {
@@ -224,6 +225,65 @@ int main(int argc, char** argv) {
                           << ", applied=" << g.lastApplied << "\n";
             }
             return 0;
+        } else if (cfg.command == "faults") {
+            if (cfg.args.empty()) {
+                std::cerr << "Error: faults requires subaction: block <peer>, unblock <peer>, clear, drop <rate 0..1>, delay <ms>\n";
+                return 1;
+            }
+            AdminFaultReq req;
+            std::string sub = cfg.args[0];
+            if (sub == "block") {
+                if (cfg.args.size() < 2) {
+                    std::cerr << "Error: faults block requires <peer>\n";
+                    return 1;
+                }
+                req.action = "block";
+                req.peer = cfg.args[1];
+            } else if (sub == "unblock") {
+                if (cfg.args.size() < 2) {
+                    std::cerr << "Error: faults unblock requires <peer>\n";
+                    return 1;
+                }
+                req.action = "unblock";
+                req.peer = cfg.args[1];
+            } else if (sub == "clear") {
+                req.action = "clear";
+            } else if (sub == "drop") {
+                if (cfg.args.size() < 2) {
+                    std::cerr << "Error: faults drop requires <rate>\n";
+                    return 1;
+                }
+                req.action = "set_drop";
+                req.dropRate = std::stod(cfg.args[1]);
+            } else if (sub == "delay") {
+                if (cfg.args.size() < 2) {
+                    std::cerr << "Error: faults delay requires <ms>\n";
+                    return 1;
+                }
+                req.action = "set_delay";
+                req.delayMs = static_cast<uint32_t>(std::stoul(cfg.args[1]));
+            } else {
+                std::cerr << "Unknown fault subaction: " << sub << "\n";
+                return 1;
+            }
+
+            std::vector<uint8_t> payload;
+            encodeAdminFaultReq(req, payload);
+
+            Frame resp;
+            if (!client.callSync(kMsgAdminFaultReq, payload, resp, 2000)) {
+                std::cerr << "Error: fault request timed out\n";
+                return 1;
+            }
+            AdminFaultResp r;
+            decodeAdminFaultResp(resp.payload.data(), resp.payload.size(), r);
+            if (r.ok) {
+                std::cout << "OK (" << r.message << ")\n";
+                return 0;
+            } else {
+                std::cerr << "Error: " << r.message << "\n";
+                return 1;
+            }
         } else {
             std::cerr << "Unknown command: " << cfg.command << "\n";
             return 1;

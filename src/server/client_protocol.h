@@ -107,6 +107,18 @@ struct ClusterStatusResp {
     std::vector<GroupStatus> groups;
 };
 
+struct AdminFaultReq {
+    std::string action;     // "block", "unblock", "clear", "set_drop", "set_delay"
+    std::string peer;
+    double      dropRate{0.0};
+    uint32_t    delayMs{0};
+};
+
+struct AdminFaultResp {
+    bool        ok{true};
+    std::string message;
+};
+
 // ── Serialization Helpers ───────────────────────────────────────────────────
 void encodeKvGetReq(const KvGetReq& req, std::vector<uint8_t>& out);
 bool decodeKvGetReq(const uint8_t* data, size_t len, KvGetReq& out);
@@ -134,5 +146,11 @@ bool decodeKvCasResp(const uint8_t* data, size_t len, KvCasResp& out);
 
 void encodeClusterStatusResp(const ClusterStatusResp& resp, std::vector<uint8_t>& out);
 bool decodeClusterStatusResp(const uint8_t* data, size_t len, ClusterStatusResp& out);
+
+void encodeAdminFaultReq(const AdminFaultReq& req, std::vector<uint8_t>& out);
+bool decodeAdminFaultReq(const uint8_t* data, size_t len, AdminFaultReq& out);
+
+void encodeAdminFaultResp(const AdminFaultResp& resp, std::vector<uint8_t>& out);
+bool decodeAdminFaultResp(const uint8_t* data, size_t len, AdminFaultResp& out);
 
 }  // namespace aegis

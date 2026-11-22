@@ -527,6 +527,37 @@ void Server::handleClientFrame(std::shared_ptr<TcpConnection> conn, Frame frame)
         std::vector<uint8_t> payload;
         encodeClusterStatusResp(status, payload);
         conn->send(kMsgAdminStatusResp, frame.requestId, payload.data(), payload.size());
+
+    } else if (frame.msgType == kMsgAdminFaultReq) {
+        AdminFaultReq req;
+        AdminFaultResp resp{true, "OK"};
+        if (decodeAdminFaultReq(frame.payload.data(), frame.payload.size(), req)) {
+            if (faults_) {
+                if (req.action == "block") {
+                    faults_->block(req.peer);
+                } else if (req.action == "unblock") {
+                    faults_->unblock(req.peer);
+                } else if (req.action == "clear") {
+                    faults_->clearBlocked();
+                } else if (req.action == "set_drop") {
+                    faults_->setDropRate(req.dropRate);
+                } else if (req.action == "set_delay") {
+                    faults_->setDelay(std::chrono::milliseconds(req.delayMs));
+                } else {
+                    resp.ok = false;
+                    resp.message = "Unknown fault action: " + req.action;
+                }
+            } else {
+                resp.ok = false;
+                resp.message = "Fault injector not configured";
+            }
+        } else {
+            resp.ok = false;
+            resp.message = "Failed to decode AdminFaultReq";
+        }
+        std::vector<uint8_t> payload;
+        encodeAdminFaultResp(resp, payload);
+        conn->send(kMsgAdminFaultResp, frame.requestId, payload.data(), payload.size());
     }
 }
 
