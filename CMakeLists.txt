@@ -28,6 +28,11 @@ include(CTest)
 enable_testing()
 include(cmake/FetchGTest.cmake)
 
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
 # ── Subdirectories ────────────────────────────────────────────────────────────
 add_subdirectory(src)
 add_subdirectory(tools)
