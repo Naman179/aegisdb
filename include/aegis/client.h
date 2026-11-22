@@ -132,7 +132,7 @@ public:
         return false;
     }
 
-    bool del(const std::string& key, uint64_t* outVersion = nullptr) {
+    bool del(const std::string& key) {
         uint64_t seq = seqNo_++;
         int group = ring_.groupFor(key);
 
@@ -152,9 +152,8 @@ public:
                 KvDelResp r;
                 if (decodeKvDelResp(resp.payload.data(), resp.payload.size(), r)) {
                     if (r.status == StatusCode::kOk) {
-                        if (outVersion) *outVersion = r.version;
                         updateLeader(group, targetAddr);
-                        return true;
+                        return r.deleted;
                     }
                     if (r.status == StatusCode::kKeyNotFound) {
                         return false;
@@ -183,7 +182,7 @@ public:
             auto client = getClient(targetAddr);
             if (!client) continue;
 
-            KvCasReq req{config_.clientId, seq, key, val, expectedVersion};
+            KvCasReq req{config_.clientId, seq, key, expectedVersion, val};
             std::vector<uint8_t> payload;
             encodeKvCasReq(req, payload);
 
@@ -191,12 +190,12 @@ public:
             if (client->callSync(kMsgKvCasReq, payload, resp, config_.timeoutMs)) {
                 KvCasResp r;
                 if (decodeKvCasResp(resp.payload.data(), resp.payload.size(), r)) {
-                    if (r.status == StatusCode::kOk) {
+                    if (r.status == StatusCode::kOk && r.success) {
                         if (outVersion) *outVersion = r.version;
                         updateLeader(group, targetAddr);
                         return true;
                     }
-                    if (r.status == StatusCode::kVersionMismatch) {
+                    if (r.status == StatusCode::kCasMismatch || !r.success) {
                         return false;
                     }
                     if (r.status == StatusCode::kNotLeader) {
