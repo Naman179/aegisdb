@@ -135,6 +135,43 @@ std::string Server::resolveClientAddr(NodeId id) const {
     return "";
 }
 
+void Server::sendGroupMessages(size_t g, std::vector<Message> msgs) {
+    if (g >= groups_.size() || msgs.empty()) return;
+    for (auto& m : msgs) {
+        pool_.enqueue([this, g, m = std::move(m)]() {
+            std::vector<Message> out;
+            if (std::holds_alternative<RequestVoteArgs>(m.payload)) {
+                const auto& args = std::get<RequestVoteArgs>(m.payload);
+                RequestVoteReply reply;
+                if (transport_->requestVote(static_cast<uint32_t>(g), m.to, args, reply, 800)) {
+                    std::lock_guard<std::mutex> lk(groups_[g]->mu);
+                    Message respMsg{m.to, opts_.nodeId, reply};
+                    out = groups_[g]->raft->step(respMsg);
+                }
+            } else if (std::holds_alternative<AppendEntriesArgs>(m.payload)) {
+                const auto& args = std::get<AppendEntriesArgs>(m.payload);
+                AppendEntriesReply reply;
+                if (transport_->appendEntries(static_cast<uint32_t>(g), m.to, args, reply, 800)) {
+                    std::lock_guard<std::mutex> lk(groups_[g]->mu);
+                    Message respMsg{m.to, opts_.nodeId, reply};
+                    out = groups_[g]->raft->step(respMsg);
+                }
+            } else if (std::holds_alternative<InstallSnapshotArgs>(m.payload)) {
+                const auto& args = std::get<InstallSnapshotArgs>(m.payload);
+                InstallSnapshotReply reply;
+                if (transport_->installSnapshot(static_cast<uint32_t>(g), m.to, args, reply, 2000)) {
+                    std::lock_guard<std::mutex> lk(groups_[g]->mu);
+                    Message respMsg{m.to, opts_.nodeId, reply};
+                    out = groups_[g]->raft->step(respMsg);
+                }
+            }
+            if (!out.empty()) {
+                sendGroupMessages(g, std::move(out));
+            }
+        });
+    }
+}
+
 void Server::tickLoop() {
     while (running_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -147,35 +184,8 @@ void Server::tickLoop() {
                 std::lock_guard<std::mutex> lk(rep->mu);
                 msgs = rep->raft->tick(10);
             }
-
-            for (auto& m : msgs) {
-                pool_.enqueue([this, g, m = std::move(m)]() {
-                    if (std::holds_alternative<RequestVoteArgs>(m.payload)) {
-                        const auto& args = std::get<RequestVoteArgs>(m.payload);
-                        RequestVoteReply reply;
-                        if (transport_->requestVote(m.to, args, reply, 800)) {
-                            std::lock_guard<std::mutex> lk(groups_[g]->mu);
-                            Message respMsg{m.to, opts_.nodeId, reply};
-                            groups_[g]->raft->step(respMsg);
-                        }
-                    } else if (std::holds_alternative<AppendEntriesArgs>(m.payload)) {
-                        const auto& args = std::get<AppendEntriesArgs>(m.payload);
-                        AppendEntriesReply reply;
-                        if (transport_->appendEntries(m.to, args, reply, 800)) {
-                            std::lock_guard<std::mutex> lk(groups_[g]->mu);
-                            Message respMsg{m.to, opts_.nodeId, reply};
-                            groups_[g]->raft->step(respMsg);
-                        }
-                    } else if (std::holds_alternative<InstallSnapshotArgs>(m.payload)) {
-                        const auto& args = std::get<InstallSnapshotArgs>(m.payload);
-                        InstallSnapshotReply reply;
-                        if (transport_->installSnapshot(m.to, args, reply, 2000)) {
-                            std::lock_guard<std::mutex> lk(groups_[g]->mu);
-                            Message respMsg{m.to, opts_.nodeId, reply};
-                            groups_[g]->raft->step(respMsg);
-                        }
-                    }
-                });
+            if (!msgs.empty()) {
+                sendGroupMessages(g, std::move(msgs));
             }
         }
     }
@@ -247,18 +257,8 @@ KvResult Server::propose(int groupId, const KvCommand& cmd, uint32_t timeoutMs) 
         }
 
         auto pending = rep->raft->takePending();
-        for (auto& m : pending) {
-            pool_.enqueue([this, groupId, m = std::move(m)]() {
-                if (std::holds_alternative<AppendEntriesArgs>(m.payload)) {
-                    const auto& args = std::get<AppendEntriesArgs>(m.payload);
-                    AppendEntriesReply reply;
-                    if (transport_->appendEntries(m.to, args, reply, 800)) {
-                        std::lock_guard<std::mutex> lk(groups_[groupId]->mu);
-                        Message respMsg{m.to, opts_.nodeId, reply};
-                        groups_[groupId]->raft->step(respMsg);
-                    }
-                }
-            });
+        if (!pending.empty()) {
+            sendGroupMessages(static_cast<size_t>(groupId), std::move(pending));
         }
     }
 
@@ -303,18 +303,8 @@ KvResult Server::read(int groupId, const std::string& key, bool stale, uint32_t 
             return KvResult{false, "", 0};
         }
         auto pending = rep->raft->takePending();
-        for (auto& m : pending) {
-            pool_.enqueue([this, groupId, m = std::move(m)]() {
-                if (std::holds_alternative<AppendEntriesArgs>(m.payload)) {
-                    const auto& args = std::get<AppendEntriesArgs>(m.payload);
-                    AppendEntriesReply reply;
-                    if (transport_->appendEntries(m.to, args, reply, 800)) {
-                        std::lock_guard<std::mutex> lk(groups_[groupId]->mu);
-                        Message respMsg{m.to, opts_.nodeId, reply};
-                        groups_[groupId]->raft->step(respMsg);
-                    }
-                }
-            });
+        if (!pending.empty()) {
+            sendGroupMessages(static_cast<size_t>(groupId), std::move(pending));
         }
     }
 

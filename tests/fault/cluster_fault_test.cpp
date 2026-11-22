@@ -39,7 +39,7 @@ public:
         }
 
         // Allow leaders to be elected
-        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
     }
 
     void teardown() {

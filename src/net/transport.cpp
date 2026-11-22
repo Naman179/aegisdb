@@ -61,7 +61,7 @@ RpcClient* Transport::getOrCreateClient(NodeId peer) {
     return ptr;
 }
 
-bool Transport::requestVote(NodeId peer, const RequestVoteArgs& args, RequestVoteReply& reply, uint32_t timeoutMs) {
+bool Transport::requestVote(uint32_t groupId, NodeId peer, const RequestVoteArgs& args, RequestVoteReply& reply, uint32_t timeoutMs) {
     std::string peerStr = std::to_string(peer);
     if (!faults_->allow(peerStr)) {
         return false;
@@ -74,8 +74,12 @@ bool Transport::requestVote(NodeId peer, const RequestVoteArgs& args, RequestVot
     }
     if (!client) return false;
 
-    std::vector<uint8_t> payload;
-    encodeRequestVoteArgs(args, payload);
+    ByteWriter bw;
+    bw.putU32(groupId);
+    std::vector<uint8_t> raftBytes;
+    encodeRequestVoteArgs(args, raftBytes);
+    bw.putBytes(raftBytes.data(), raftBytes.size());
+    auto payload = bw.take();
 
     Frame resp;
     if (!client->callSync(kMsgRequestVoteReq, payload, resp, timeoutMs)) {
@@ -89,7 +93,7 @@ bool Transport::requestVote(NodeId peer, const RequestVoteArgs& args, RequestVot
     return decodeRequestVoteReply(resp.payload.data(), resp.payload.size(), reply);
 }
 
-bool Transport::appendEntries(NodeId peer, const AppendEntriesArgs& args, AppendEntriesReply& reply, uint32_t timeoutMs) {
+bool Transport::appendEntries(uint32_t groupId, NodeId peer, const AppendEntriesArgs& args, AppendEntriesReply& reply, uint32_t timeoutMs) {
     std::string peerStr = std::to_string(peer);
     if (!faults_->allow(peerStr)) {
         return false;
@@ -102,8 +106,12 @@ bool Transport::appendEntries(NodeId peer, const AppendEntriesArgs& args, Append
     }
     if (!client) return false;
 
-    std::vector<uint8_t> payload;
-    encodeAppendEntriesArgs(args, payload);
+    ByteWriter bw;
+    bw.putU32(groupId);
+    std::vector<uint8_t> raftBytes;
+    encodeAppendEntriesArgs(args, raftBytes);
+    bw.putBytes(raftBytes.data(), raftBytes.size());
+    auto payload = bw.take();
 
     Frame resp;
     if (!client->callSync(kMsgAppendEntriesReq, payload, resp, timeoutMs)) {
@@ -117,7 +125,7 @@ bool Transport::appendEntries(NodeId peer, const AppendEntriesArgs& args, Append
     return decodeAppendEntriesReply(resp.payload.data(), resp.payload.size(), reply);
 }
 
-bool Transport::installSnapshot(NodeId peer, const InstallSnapshotArgs& args, InstallSnapshotReply& reply, uint32_t timeoutMs) {
+bool Transport::installSnapshot(uint32_t groupId, NodeId peer, const InstallSnapshotArgs& args, InstallSnapshotReply& reply, uint32_t timeoutMs) {
     std::string peerStr = std::to_string(peer);
     if (!faults_->allow(peerStr)) {
         return false;
@@ -130,8 +138,12 @@ bool Transport::installSnapshot(NodeId peer, const InstallSnapshotArgs& args, In
     }
     if (!client) return false;
 
-    std::vector<uint8_t> payload;
-    encodeInstallSnapshotArgs(args, payload);
+    ByteWriter bw;
+    bw.putU32(groupId);
+    std::vector<uint8_t> raftBytes;
+    encodeInstallSnapshotArgs(args, raftBytes);
+    bw.putBytes(raftBytes.data(), raftBytes.size());
+    auto payload = bw.take();
 
     Frame resp;
     if (!client->callSync(kMsgInstallSnapshotReq, payload, resp, timeoutMs)) {

@@ -31,6 +31,13 @@
     #define AEGIS_SOCKET_ERROR   (-1)
     #define AEGIS_CLOSE_SOCKET(s) ::close(s)
     #define AEGIS_SHUT_RDWR      SHUT_RDWR
+    #include <signal.h>
+#endif
+
+#ifdef MSG_NOSIGNAL
+    #define AEGIS_MSG_NOSIGNAL MSG_NOSIGNAL
+#else
+    #define AEGIS_MSG_NOSIGNAL 0
 #endif
 
 #include <cstdint>
@@ -48,6 +55,12 @@ inline bool initSockets() {
         int res = WSAStartup(MAKEWORD(2, 2), &wsaData);
         if (res != 0) return false;
         initialized = true;
+    }
+#else
+    static bool sigIgnored = false;
+    if (!sigIgnored) {
+        ::signal(SIGPIPE, SIG_IGN);
+        sigIgnored = true;
     }
 #endif
     return true;
@@ -67,7 +80,7 @@ inline void setReuseAddr(socket_handle_t fd) {
 inline bool sendExact(socket_handle_t fd, const uint8_t* data, size_t len) {
     size_t total = 0;
     while (total < len) {
-        int n = ::send(fd, reinterpret_cast<const char*>(data + total), static_cast<int>(len - total), 0);
+        int n = ::send(fd, reinterpret_cast<const char*>(data + total), static_cast<int>(len - total), AEGIS_MSG_NOSIGNAL);
         if (n <= 0) {
             return false;
         }

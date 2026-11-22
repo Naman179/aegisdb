@@ -94,6 +94,7 @@ private:
 
     void tickLoop();
     void applyLoop();
+    void sendGroupMessages(size_t g, std::vector<Message> msgs);
 
     std::string resolveClientAddr(NodeId id) const;
 

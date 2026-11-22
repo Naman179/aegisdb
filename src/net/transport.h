@@ -32,9 +32,20 @@ public:
     void addPeer(NodeId id, const std::string& host, int port);
     void removePeer(NodeId id);
 
-    bool requestVote(NodeId peer, const RequestVoteArgs& args, RequestVoteReply& reply, uint32_t timeoutMs = 1000);
-    bool appendEntries(NodeId peer, const AppendEntriesArgs& args, AppendEntriesReply& reply, uint32_t timeoutMs = 1000);
-    bool installSnapshot(NodeId peer, const InstallSnapshotArgs& args, InstallSnapshotReply& reply, uint32_t timeoutMs = 5000);
+    bool requestVote(uint32_t groupId, NodeId peer, const RequestVoteArgs& args, RequestVoteReply& reply, uint32_t timeoutMs = 1000);
+    bool appendEntries(uint32_t groupId, NodeId peer, const AppendEntriesArgs& args, AppendEntriesReply& reply, uint32_t timeoutMs = 1000);
+    bool installSnapshot(uint32_t groupId, NodeId peer, const InstallSnapshotArgs& args, InstallSnapshotReply& reply, uint32_t timeoutMs = 5000);
+
+    // Convenience overloads defaulting to group 0
+    bool requestVote(NodeId peer, const RequestVoteArgs& args, RequestVoteReply& reply, uint32_t timeoutMs = 1000) {
+        return requestVote(0, peer, args, reply, timeoutMs);
+    }
+    bool appendEntries(NodeId peer, const AppendEntriesArgs& args, AppendEntriesReply& reply, uint32_t timeoutMs = 1000) {
+        return appendEntries(0, peer, args, reply, timeoutMs);
+    }
+    bool installSnapshot(NodeId peer, const InstallSnapshotArgs& args, InstallSnapshotReply& reply, uint32_t timeoutMs = 5000) {
+        return installSnapshot(0, peer, args, reply, timeoutMs);
+    }
 
     std::shared_ptr<Faults> faults() const { return faults_; }
     NodeId selfId() const { return selfId_; }
