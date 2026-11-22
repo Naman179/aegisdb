@@ -63,7 +63,10 @@ public:
             if (targetAddr.empty()) break;
 
             auto client = getClient(targetAddr);
-            if (!client) continue;
+            if (!client) {
+                clearLeader(group, targetAddr);
+                continue;
+            }
 
             KvPutReq req{config_.clientId, seq, key, val};
             std::vector<uint8_t> payload;
@@ -79,11 +82,15 @@ public:
                         return true;
                     }
                     if (r.status == StatusCode::kNotLeader) {
-                        if (!r.leaderAddr.empty()) {
+                        if (!r.leaderAddr.empty() && r.leaderAddr != targetAddr) {
                             updateLeader(group, r.leaderAddr);
+                        } else {
+                            clearLeader(group, targetAddr);
                         }
                     }
                 }
+            } else {
+                clearLeader(group, targetAddr);
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(50 * (attempt + 1)));
@@ -100,7 +107,10 @@ public:
             if (targetAddr.empty()) break;
 
             auto client = getClient(targetAddr);
-            if (!client) continue;
+            if (!client) {
+                clearLeader(group, targetAddr);
+                continue;
+            }
 
             KvGetReq req{config_.clientId, seq, key, stale};
             std::vector<uint8_t> payload;
@@ -120,11 +130,15 @@ public:
                         return false;
                     }
                     if (r.status == StatusCode::kNotLeader) {
-                        if (!r.leaderAddr.empty()) {
+                        if (!r.leaderAddr.empty() && r.leaderAddr != targetAddr) {
                             updateLeader(group, r.leaderAddr);
+                        } else {
+                            clearLeader(group, targetAddr);
                         }
                     }
                 }
+            } else {
+                clearLeader(group, targetAddr);
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(50 * (attempt + 1)));
@@ -141,7 +155,10 @@ public:
             if (targetAddr.empty()) break;
 
             auto client = getClient(targetAddr);
-            if (!client) continue;
+            if (!client) {
+                clearLeader(group, targetAddr);
+                continue;
+            }
 
             KvDelReq req{config_.clientId, seq, key};
             std::vector<uint8_t> payload;
@@ -159,11 +176,15 @@ public:
                         return false;
                     }
                     if (r.status == StatusCode::kNotLeader) {
-                        if (!r.leaderAddr.empty()) {
+                        if (!r.leaderAddr.empty() && r.leaderAddr != targetAddr) {
                             updateLeader(group, r.leaderAddr);
+                        } else {
+                            clearLeader(group, targetAddr);
                         }
                     }
                 }
+            } else {
+                clearLeader(group, targetAddr);
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(50 * (attempt + 1)));
@@ -180,7 +201,10 @@ public:
             if (targetAddr.empty()) break;
 
             auto client = getClient(targetAddr);
-            if (!client) continue;
+            if (!client) {
+                clearLeader(group, targetAddr);
+                continue;
+            }
 
             KvCasReq req{config_.clientId, seq, key, expectedVersion, val};
             std::vector<uint8_t> payload;
@@ -199,11 +223,15 @@ public:
                         return false;
                     }
                     if (r.status == StatusCode::kNotLeader) {
-                        if (!r.leaderAddr.empty()) {
+                        if (!r.leaderAddr.empty() && r.leaderAddr != targetAddr) {
                             updateLeader(group, r.leaderAddr);
+                        } else {
+                            clearLeader(group, targetAddr);
                         }
                     }
                 }
+            } else {
+                clearLeader(group, targetAddr);
             }
 
             std::this_thread::sleep_for(std::chrono::milliseconds(50 * (attempt + 1)));
@@ -239,7 +267,7 @@ private:
     std::string getTargetAddr(int group, uint32_t attempt) {
         std::lock_guard<std::mutex> lk(mu_);
         auto it = groupLeaders_.find(group);
-        if (it != groupLeaders_.end() && !it->second.empty() && attempt == 0) {
+        if (it != groupLeaders_.end() && !it->second.empty()) {
             return it->second;
         }
         if (config_.clusterAddrs.empty()) return "";
@@ -249,6 +277,14 @@ private:
     void updateLeader(int group, const std::string& addr) {
         std::lock_guard<std::mutex> lk(mu_);
         groupLeaders_[group] = addr;
+    }
+
+    void clearLeader(int group, const std::string& addr) {
+        std::lock_guard<std::mutex> lk(mu_);
+        auto it = groupLeaders_.find(group);
+        if (it != groupLeaders_.end() && it->second == addr) {
+            groupLeaders_.erase(it);
+        }
     }
 
     ClientConfig                                     config_;
