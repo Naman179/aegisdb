@@ -1,4 +1,5 @@
 #include "server/client_protocol.h"
+#include <cstring>
 
 namespace aegis {
 
