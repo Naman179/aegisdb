@@ -46,7 +46,9 @@ TEST(NetTest, PartialRecvReassembles) {
     Frame f;
     for (size_t i = 0; i < wire.size(); ++i) {   // one byte per recv()
         ASSERT_TRUE(fs.feed(&wire[i], 1));
-        if (i + 1 < wire.size()) ASSERT_FALSE(fs.next(f)) << "complete too early at " << i;
+        if (i + 1 < wire.size()) {
+            ASSERT_FALSE(fs.next(f)) << "complete too early at " << i;
+        }
     }
     ASSERT_TRUE(fs.next(f));
     expectEq(f, s);

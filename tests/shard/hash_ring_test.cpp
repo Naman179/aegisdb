@@ -69,8 +69,11 @@ TEST(HashRingTest, RemoveGroupOnlyMovesItsKeys) {
 
     for (int i = 0; i < 20000; ++i) {
         int g0 = full.groupFor(key(i)), g1 = less.groupFor(key(i));
-        if (g0 != 2) EXPECT_EQ(g0, g1) << "key " << i << " must not move";
-        else         EXPECT_NE(g1, 2);
+        if (g0 != 2) {
+            EXPECT_EQ(g0, g1) << "key " << i << " must not move";
+        } else {
+            EXPECT_NE(g1, 2);
+        }
     }
 }
 
