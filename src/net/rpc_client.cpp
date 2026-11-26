@@ -13,15 +13,30 @@ RpcClient::~RpcClient() {
 }
 
 bool RpcClient::connect() {
+    std::lock_guard<std::mutex> lk(connMu_);
     net_util::initSockets();
-    close();
 
-    fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ == AEGIS_INVALID_SOCKET) {
+    running_ = false;
+    connected_ = false;
+    socket_handle_t oldS = fd_.load();
+    if (oldS != AEGIS_INVALID_SOCKET) {
+        ::shutdown(oldS, AEGIS_SHUT_RDWR);
+    }
+    if (readerThread_.joinable()) {
+        readerThread_.join();
+    }
+    oldS = fd_.exchange(AEGIS_INVALID_SOCKET);
+    if (oldS != AEGIS_INVALID_SOCKET) {
+        AEGIS_CLOSE_SOCKET(oldS);
+    }
+    failAllPending();
+
+    socket_handle_t s = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (s == AEGIS_INVALID_SOCKET) {
         return false;
     }
 
-    net_util::setTcpNoDelay(fd_);
+    net_util::setTcpNoDelay(s);
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
@@ -32,12 +47,12 @@ bool RpcClient::connect() {
         inet_pton(AF_INET, host_.c_str(), &addr.sin_addr);
     }
 
-    if (::connect(fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == AEGIS_SOCKET_ERROR) {
-        AEGIS_CLOSE_SOCKET(fd_);
-        fd_ = AEGIS_INVALID_SOCKET;
+    if (::connect(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == AEGIS_SOCKET_ERROR) {
+        AEGIS_CLOSE_SOCKET(s);
         return false;
     }
 
+    fd_ = s;
     connected_ = true;
     running_ = true;
     readerThread_ = std::thread(&RpcClient::readerLoop, this);
@@ -96,6 +111,7 @@ bool RpcClient::callSync(uint8_t msgType, const std::vector<uint8_t>& payload, F
 }
 
 void RpcClient::close() {
+    std::lock_guard<std::mutex> lk(connMu_);
     running_ = false;
     connected_ = false;
 

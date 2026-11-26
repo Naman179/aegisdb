@@ -160,6 +160,8 @@ TEST(LinearizabilityTest, ConcurrentReadsAndWritesStrictOrdering) {
 
     EXPECT_EQ(violations, 0);
 
+    client.close();
+
     for (NodeId id = 1; id <= 5; ++id) {
         if (nodes[id]) {
             nodes[id]->stop();

@@ -53,6 +53,7 @@ private:
     std::atomic<bool>                running_{false};
     std::atomic<uint64_t>            nextReqId_{1};
 
+    std::mutex                       connMu_;
     std::mutex                       sendMu_;
     std::mutex                       pendingMu_;
     std::unordered_map<uint64_t, std::promise<Frame>> pending_;

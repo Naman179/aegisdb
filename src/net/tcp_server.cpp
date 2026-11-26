@@ -121,20 +121,22 @@ void TcpServer::stop() {
     }
 
     // Unblock all client recv/send threads first
+    std::vector<std::thread> threadsToJoin;
     {
         std::lock_guard<std::mutex> lk(connsMu_);
         for (auto& conn : connections_) {
             conn->shutdown();
         }
+        threadsToJoin = std::move(clientThreads_);
+        clientThreads_.clear();
     }
 
     // Wait for all client threads to finish before closing fds
-    for (auto& t : clientThreads_) {
+    for (auto& t : threadsToJoin) {
         if (t.joinable()) {
             t.join();
         }
     }
-    clientThreads_.clear();
 
     // Now all client threads are joined; close all connection sockets safely
     {
@@ -168,9 +170,8 @@ void TcpServer::acceptLoop() {
         {
             std::lock_guard<std::mutex> lk(connsMu_);
             connections_.push_back(conn);
+            clientThreads_.emplace_back(&TcpServer::clientLoop, this, conn);
         }
-
-        clientThreads_.emplace_back(&TcpServer::clientLoop, this, conn);
     }
 }
 

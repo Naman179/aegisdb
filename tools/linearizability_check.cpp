@@ -213,6 +213,8 @@ int main(int argc, char** argv) {
         }
     }
 
+    client.close();
+
     if (violations == 0) {
         std::cout << "[PASSED] Linearizability verified successfully!\n"
                   << "  Successful operations verified: " << successfulOps << "\n"
