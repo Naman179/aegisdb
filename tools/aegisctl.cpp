@@ -235,9 +235,12 @@ int main(int argc, char** argv) {
                 return 1;
             }
             std::string key = cfg.args[0];
-            HashRing ring(3, 128);
+            HashRing ring;
+            for (int g = 0; g < 3; ++g) {
+                ring.addGroup(g, 128);
+            }
             int group = ring.groupFor(key);
-            uint64_t hashVal = HashRing::hash(key);
+            uint64_t hashVal = hash64(key);
 
             std::cout << "Routing Resolution for Key: '" << key << "'\n"
                       << "  Consistent Hash: 0x" << std::hex << hashVal << std::dec << "\n"
