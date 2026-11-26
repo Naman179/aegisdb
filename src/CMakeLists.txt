@@ -2,6 +2,7 @@ add_library(aegisdb_common STATIC
     common/codec.cpp
     common/crc32c.cpp
     common/logger.cpp
+    common/config.cpp
 )
 
 target_include_directories(aegisdb_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

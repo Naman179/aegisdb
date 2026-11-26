@@ -2,6 +2,7 @@ add_executable(aegis_tests
     common/codec_test.cpp
     common/crc32c_test.cpp
     common/logger_test.cpp
+    common/config_test.cpp
     # Milestone 2 – WAL
     wal/wal_test.cpp
     # Milestone 3 – KV state machine
