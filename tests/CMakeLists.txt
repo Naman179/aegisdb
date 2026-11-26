@@ -26,6 +26,7 @@ add_executable(aegis_tests
     fault/cluster_fault_test.cpp
     # Client SDK Tests
     client/client_test.cpp
+    client/linearizability_test.cpp
 )
 
 target_include_directories(aegis_tests PRIVATE

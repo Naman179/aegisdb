@@ -18,3 +18,9 @@ add_executable(rebalance
 )
 target_include_directories(rebalance PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(rebalance PRIVATE aegisdb_server aegisdb_shard aegisdb_net aegisdb_common)
+
+add_executable(linearizability_check
+    linearizability_check.cpp
+)
+target_include_directories(linearizability_check PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(linearizability_check PRIVATE aegisdb_server aegisdb_net aegisdb_common)
