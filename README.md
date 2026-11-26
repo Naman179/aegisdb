@@ -3,7 +3,7 @@
 [![CI](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml/badge.svg)](https://github.com/Naman179/aegisdb/actions/workflows/ci.yml)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus)
 ![Build](https://img.shields.io/badge/build-CMake-064F8C?logo=cmake)
-![Testing](https://img.shields.io/badge/tests-132%20passed%20(77%20fault%20injections)-brightgreen)
+![Testing](https://img.shields.io/badge/tests-136%20passed%20(79%20fault%20injections)-brightgreen)
 ![Sanitizers](https://img.shields.io/badge/sanitizers-ASAN%20%7C%20TSAN-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -169,10 +169,11 @@ docker compose down -v
 
 ---
 
-## Complete Test Inventory (132 tests, 77 fault injections)
+## Complete Test Inventory (136 tests, 79 fault injections)
 
 | Test Suite | Total Cases | Fault Cases | Test Cases |
 |---|:---:|:---:|---|
+| **ConfigTest** | 3 | 0 | `BasicKeyValueAndTypes`, `SectionsAndInlineComments`, `LoadFromFileRoundtrip` |
 | **WalTest** | 8 | 4 | `AppendAndReplay`, `ReplayAcrossSegments`, `SegmentRollover`, `DropSegmentsBeforeSnapshot`, **`TornHeaderTruncated`**, **`TornBodyTruncated`**, **`CrcMismatchStopsReplay`**, **`OversizedLengthRejected`** |
 | **SnapshotTest** | 5 | 3 | `SnapshotRoundTrip`, `LoadRejectsGapAfterSnapshot`, **`CrashBeforeRenameIgnoresTmp`**, **`CrashAfterRenameBeforeWalCleanup`**, **`CorruptSnapshotFallsBackToPrevious`** |
 | **KvStoreTest** | 9 | 0 | `PutAndGet`, `DeleteRemovesKey`, `VersionIncrementsOnPut`, `DuplicateSessionReturnsCachedResult`, `CommandEncodeDecodeRoundtrip`, `SnapshotRestoreRoundtrip`, `CasZeroMeansAbsent`, `CasSucceedsOnMatch`, `CasFailsOnMismatch` |
@@ -184,7 +185,8 @@ docker compose down -v
 | **ChaosTest** | 23 | 23 | Parameterized over **23 random seeds**: random crashes, restarts, 2&#124;3 partitions, 10% packet drops &amp; reordering with snapshots enabled; verifies every acked write is applied exactly once and all logs converge byte-identically |
 | **ClusterFaultTest** | 7 | 7 | **`KillMinus9LeaderNoAckedLoss`**, **`KillTwoNodesStillServes`**, **`KillThreeNodesUnavailableThenRecovers`**, **`Partition2v3MinorityRefusesWrites`**, **`FullClusterRestartDurability`**, **`RetriesAreIdempotentUnderDrops`**, **`RebalanceUnderLoadLosesNothing`** |
 | **ClientSdkTest** | 2 | 1 | `EndToEndCrudAndRouting`, **`TransparentLeaderRedirect`** (automatic failover &amp; redirect tracking) |
-| **Total** | **132** | **77** | **100% passed across all 3 configurations: Debug, AddressSanitizer (ASAN), and ThreadSanitizer (TSAN)** |
+| **LinearizabilityTest** | 1 | 1 | **`ConcurrentReadsAndWritesStrictOrdering`** (multi-threaded real-time ordering and zero stale reads verification) |
+| **Total** | **136** | **79** | **100% passed across all 3 configurations: Debug, AddressSanitizer (ASAN), and ThreadSanitizer (TSAN)** |
 
 ---
 
