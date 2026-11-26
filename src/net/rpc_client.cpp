@@ -25,9 +25,12 @@ bool RpcClient::connect() {
     if (readerThread_.joinable()) {
         readerThread_.join();
     }
-    oldS = fd_.exchange(AEGIS_INVALID_SOCKET);
-    if (oldS != AEGIS_INVALID_SOCKET) {
-        AEGIS_CLOSE_SOCKET(oldS);
+    {
+        std::lock_guard<std::mutex> slk(sendMu_);
+        oldS = fd_.exchange(AEGIS_INVALID_SOCKET);
+        if (oldS != AEGIS_INVALID_SOCKET) {
+            AEGIS_CLOSE_SOCKET(oldS);
+        }
     }
     failAllPending();
 
@@ -52,9 +55,12 @@ bool RpcClient::connect() {
         return false;
     }
 
-    fd_ = s;
-    connected_ = true;
-    running_ = true;
+    {
+        std::lock_guard<std::mutex> slk(sendMu_);
+        fd_ = s;
+        connected_ = true;
+        running_ = true;
+    }
     readerThread_ = std::thread(&RpcClient::readerLoop, this);
     return true;
 }
@@ -124,9 +130,12 @@ void RpcClient::close() {
         readerThread_.join();
     }
 
-    s = fd_.exchange(AEGIS_INVALID_SOCKET);
-    if (s != AEGIS_INVALID_SOCKET) {
-        AEGIS_CLOSE_SOCKET(s);
+    {
+        std::lock_guard<std::mutex> slk(sendMu_);
+        s = fd_.exchange(AEGIS_INVALID_SOCKET);
+        if (s != AEGIS_INVALID_SOCKET) {
+            AEGIS_CLOSE_SOCKET(s);
+        }
     }
 
     failAllPending();
