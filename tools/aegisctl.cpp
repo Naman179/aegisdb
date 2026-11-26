@@ -12,8 +12,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 #include "net/rpc_client.h"
 #include "server/client_protocol.h"
+#include "shard/hash_ring.h"
 
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -38,6 +40,8 @@ static void printUsage() {
               << "  del <key>                       Delete key\n"
               << "  cas <key> <expVersion> <value>  Compare-and-swap\n"
               << "  status                          Display cluster status\n"
+              << "  top                             Display interactive cluster topology and node health\n"
+              << "  routing <key>                   Show consistent-hash ring routing for key\n"
               << "  faults <action> [args...]       Inject network faults (block, unblock, clear, drop, delay)\n";
 }
 
@@ -225,6 +229,99 @@ int main(int argc, char** argv) {
                           << ", applied=" << g.lastApplied << "\n";
             }
             return 0;
+        } else if (cfg.command == "routing") {
+            if (cfg.args.empty()) {
+                std::cerr << "Error: routing requires <key>\n";
+                return 1;
+            }
+            std::string key = cfg.args[0];
+            HashRing ring(3, 128);
+            int group = ring.groupFor(key);
+            uint64_t hashVal = HashRing::hash(key);
+
+            std::cout << "Routing Resolution for Key: '" << key << "'\n"
+                      << "  Consistent Hash: 0x" << std::hex << hashVal << std::dec << "\n"
+                      << "  Target Group:    Group " << group << "\n";
+
+            Frame resp;
+            if (client.callSync(kMsgAdminStatusReq, {}, resp, 2000)) {
+                ClusterStatusResp status;
+                decodeClusterStatusResp(resp.payload.data(), resp.payload.size(), status);
+                for (const auto& g : status.groups) {
+                    if (g.groupId == group) {
+                        std::cout << "  Leader Node ID:  " << (g.leaderId != kNone ? std::to_string(g.leaderId) : "unknown/election") << "\n"
+                                  << "  Group Role:      " << (g.role == RaftRole::kLeader ? "Leader" : "Follower") << "\n"
+                                  << "  Current Term:    " << g.term << "\n";
+                        break;
+                    }
+                }
+            }
+            return 0;
+
+        } else if (cfg.command == "top") {
+            std::cout << "========================================================================================\n"
+                      << "AegisDB Multi-Raft Cluster Dashboard (3 Groups · 5 Nodes · 15 Replicas)\n"
+                      << "========================================================================================\n";
+            std::cout << std::left << std::setw(8) << "Node"
+                      << std::setw(18) << "Endpoint"
+                      << std::setw(18) << "Group 0"
+                      << std::setw(18) << "Group 1"
+                      << std::setw(18) << "Group 2"
+                      << "Status\n";
+            std::cout << "----------------------------------------------------------------------------------------\n";
+
+            int onlineCount = 0;
+            int basePort = 7000;
+            for (int id = 1; id <= 5; ++id) {
+                std::string targetHost = host;
+                int targetPort = basePort + id;
+                RpcClient nodeClient(targetHost, targetPort);
+                std::cout << std::left << std::setw(8) << ("Node " + std::to_string(id))
+                          << std::setw(18) << (targetHost + ":" + std::to_string(targetPort));
+
+                if (!nodeClient.connect()) {
+                    std::cout << std::setw(18) << "-"
+                              << std::setw(18) << "-"
+                              << std::setw(18) << "-"
+                              << "OFFLINE\n";
+                    continue;
+                }
+
+                Frame resp;
+                if (!nodeClient.callSync(kMsgAdminStatusReq, {}, resp, 1500)) {
+                    std::cout << std::setw(18) << "-"
+                              << std::setw(18) << "-"
+                              << std::setw(18) << "-"
+                              << "UNRESPONSIVE\n";
+                    continue;
+                }
+
+                onlineCount++;
+                ClusterStatusResp status;
+                decodeClusterStatusResp(resp.payload.data(), resp.payload.size(), status);
+
+                auto formatGroup = [](const GroupStatus& g) {
+                    std::string r = (g.role == RaftRole::kLeader ? "LEADER" :
+                                    (g.role == RaftRole::kCandidate ? "CAND" : "FOLLOWER"));
+                    return r + " (T:" + std::to_string(g.term) + ")";
+                };
+
+                std::string g0Str = "-", g1Str = "-", g2Str = "-";
+                for (const auto& g : status.groups) {
+                    if (g.groupId == 0) g0Str = formatGroup(g);
+                    else if (g.groupId == 1) g1Str = formatGroup(g);
+                    else if (g.groupId == 2) g2Str = formatGroup(g);
+                }
+
+                std::cout << std::setw(18) << g0Str
+                          << std::setw(18) << g1Str
+                          << std::setw(18) << g2Str
+                          << "ONLINE\n";
+            }
+            std::cout << "----------------------------------------------------------------------------------------\n";
+            std::cout << "Cluster Health: " << onlineCount << "/5 Nodes Online | Quorum Requirement: 3/5\n";
+            return 0;
+
         } else if (cfg.command == "faults") {
             if (cfg.args.empty()) {
                 std::cerr << "Error: faults requires subaction: block <peer>, unblock <peer>, clear, drop <rate 0..1>, delay <ms>\n";
